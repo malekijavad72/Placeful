@@ -1,0 +1,900 @@
+/* =========================================================
+   GLOBAL
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f5f5;
+    color: #222;
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+header {
+
+    height: 80px;
+
+    padding: 15px 25px;
+
+    background: #ffffff;
+
+}
+
+
+header h1 {
+
+    margin: 0;
+
+}
+
+
+header p {
+
+    margin: 5px 0 0;
+
+    color: #666;
+
+}
+
+
+/* =========================================================
+   MAIN
+   ========================================================= */
+
+main {
+
+    height: calc(100vh - 80px);
+
+}
+
+
+/* =========================================================
+   EXPERIENCE MAP SECTION
+   ========================================================= */
+
+.experience-map-section {
+
+    width: 100%;
+
+    height: 100%;
+
+}
+
+
+.section-header {
+
+    position: absolute;
+
+    top: 95px;
+
+    left: 25px;
+
+    z-index: 1000;
+
+    padding: 10px 15px;
+
+    background: rgba(255, 255, 255, 0.92);
+
+    border-radius: 10px;
+
+    box-shadow:
+        0 3px 12px rgba(0, 0, 0, 0.12);
+
+}
+
+
+.section-header h2 {
+
+    margin: 0 0 5px;
+
+    font-size: 20px;
+
+}
+
+
+.section-header p {
+
+    margin: 0;
+
+    font-size: 13px;
+
+    color: #666;
+
+}
+
+
+/* =========================================================
+   MAP CONTAINER
+   ========================================================= */
+
+#full-map-container {
+
+    position: relative;
+
+    width: 100%;
+
+    height: 100%;
+
+}
+
+
+#full-map {
+
+    width: 100%;
+
+    height: 100%;
+
+}
+
+
+/* =========================================================
+   EXPERIENCE POPUP
+   ========================================================= */
+
+.popup {
+
+    position: absolute;
+
+    display: none;
+
+    min-width: 250px;
+
+    max-width: 320px;
+
+    padding: 20px;
+
+    background: #ffffff;
+
+    border-radius: 10px;
+
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.25);
+
+    z-index: 2000;
+
+}
+
+
+.popup h2 {
+
+    margin: 0 0 10px;
+
+    padding-right: 20px;
+
+    font-size: 18px;
+
+}
+
+
+.popup p {
+
+    margin: 0;
+
+    line-height: 1.6;
+
+    color: #444;
+
+}
+
+
+#popup-close {
+
+    position: absolute;
+
+    top: 8px;
+
+    right: 10px;
+
+    width: 28px;
+
+    height: 28px;
+
+    border: none;
+
+    background: transparent;
+
+    color: #777;
+
+    font-size: 22px;
+
+    cursor: pointer;
+
+}
+
+
+#popup-close:hover {
+
+    color: #222;
+
+}
+
+
+/* =========================================================
+   ADD EXPERIENCE BUTTON
+   ========================================================= */
+
+.add-experience-btn {
+
+    position: absolute;
+
+    bottom: 20px;
+
+    left: 20px;
+
+    z-index: 1000;
+
+    border: none;
+
+    border-radius: 10px;
+
+    padding: 12px 20px;
+
+    background: #222;
+
+    color: #ffffff;
+
+    font-family: inherit;
+
+    font-size: 14px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.2);
+
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease;
+
+}
+
+
+.add-experience-btn:hover {
+
+    background: #333;
+
+    transform: translateY(-2px);
+
+}
+
+
+.add-experience-btn:active {
+
+    transform: translateY(0);
+
+}
+
+
+/* =========================================================
+   EMOTION LEGEND
+   ========================================================= */
+
+.emotion-legend {
+
+    position: absolute;
+
+    top: 20px;
+
+    right: 20px;
+
+    z-index: 1000;
+
+    min-width: 175px;
+
+    background: #ffffff;
+
+    border-radius: 12px;
+
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.18);
+
+    overflow: hidden;
+
+}
+
+
+/* =========================================================
+   LEGEND HEADER
+   ========================================================= */
+
+.legend-header {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    padding: 10px 12px;
+
+    background: #222;
+
+    color: #ffffff;
+
+    font-size: 14px;
+
+    font-weight: 600;
+
+}
+
+
+/* =========================================================
+   LEGEND TOGGLE BUTTON
+   ========================================================= */
+
+#legend-toggle {
+
+    width: 26px;
+
+    height: 26px;
+
+    padding: 0;
+
+    border: none;
+
+    border-radius: 5px;
+
+    background: transparent;
+
+    color: #ffffff;
+
+    font-size: 20px;
+
+    line-height: 26px;
+
+    cursor: pointer;
+
+}
+
+
+#legend-toggle:hover {
+
+    background: rgba(255, 255, 255, 0.15);
+
+}
+
+
+/* =========================================================
+   LEGEND CONTENT
+   ========================================================= */
+
+.legend-content {
+
+    display: flex;
+
+    flex-direction: column;
+
+    padding: 6px;
+
+}
+
+
+/* =========================================================
+   HIDDEN LEGEND
+   ========================================================= */
+
+.legend-content.hidden {
+
+    display: none;
+
+}
+
+
+/* =========================================================
+   LEGEND ITEM
+   ========================================================= */
+
+.legend-item {
+
+    display: flex;
+
+    align-items: center;
+
+    width: 100%;
+
+    padding: 8px 10px;
+
+    border: none;
+
+    border-radius: 7px;
+
+    background: transparent;
+
+    color: #333;
+
+    font-family: inherit;
+
+    font-size: 14px;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        transform 0.15s ease;
+
+}
+
+
+.legend-item:hover {
+
+    background: #f1f1f1;
+
+}
+
+
+/* =========================================================
+   ACTIVE LEGEND ITEM
+   ========================================================= */
+
+.legend-item.active {
+
+    background: #e8e8e8;
+
+    font-weight: 600;
+
+}
+
+
+/* =========================================================
+   LEGEND EMOJI
+   ========================================================= */
+
+.legend-emoji {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 30px;
+
+    margin-right: 8px;
+
+    font-size: 21px;
+
+}
+
+
+/* =========================================================
+   LEGEND LABEL
+   ========================================================= */
+
+.legend-label {
+
+    flex: 1;
+
+}
+
+
+/* =========================================================
+   EXPERIENCE FORM OVERLAY
+   ========================================================= */
+
+.experience-form-overlay {
+
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 5000;
+
+    display: none;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 20px;
+
+    background: rgba(0, 0, 0, 0.45);
+
+}
+
+
+.experience-form-overlay.active {
+
+    display: flex;
+
+}
+
+
+/* =========================================================
+   EXPERIENCE FORM
+   ========================================================= */
+
+.experience-form {
+
+    position: relative;
+
+    width: 100%;
+
+    max-width: 500px;
+
+    padding: 30px;
+
+    background: #ffffff;
+
+    border-radius: 16px;
+
+    box-shadow:
+        0 15px 50px rgba(0, 0, 0, 0.25);
+
+    direction: ltr;
+
+}
+
+
+.experience-form h2 {
+
+    margin: 0 0 8px;
+
+    color: #222;
+
+    font-size: 24px;
+
+    font-weight: 700;
+
+}
+
+
+.form-description {
+
+    margin: 0 0 25px;
+
+    color: #777;
+
+    font-size: 14px;
+
+    line-height: 1.5;
+
+}
+
+
+/* =========================================================
+   FORM CLOSE BUTTON
+   ========================================================= */
+
+.close-form-btn {
+
+    position: absolute;
+
+    top: 12px;
+
+    right: 15px;
+
+    width: 35px;
+
+    height: 35px;
+
+    border: none;
+
+    background: transparent;
+
+    color: #777;
+
+    font-family: Arial, sans-serif;
+
+    font-size: 28px;
+
+    line-height: 35px;
+
+    cursor: pointer;
+
+}
+
+
+.close-form-btn:hover {
+
+    color: #222;
+
+}
+
+
+/* =========================================================
+   FORM GROUP
+   ========================================================= */
+
+.form-group {
+
+    margin-bottom: 20px;
+
+}
+
+
+.form-group label {
+
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: #333;
+
+    font-size: 14px;
+
+    font-weight: 600;
+
+}
+
+
+/* =========================================================
+   FORM INPUTS
+   ========================================================= */
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+
+    display: block;
+
+    width: 100%;
+
+    padding: 11px 12px;
+
+    border: 1px solid #ddd;
+
+    border-radius: 8px;
+
+    background: #ffffff;
+
+    color: #222;
+
+    font-family: inherit;
+
+    font-size: 14px;
+
+    outline: none;
+
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+
+}
+
+
+.form-group input {
+
+    height: 44px;
+
+}
+
+
+.form-group textarea {
+
+    min-height: 120px;
+
+    resize: vertical;
+
+    line-height: 1.5;
+
+}
+
+
+.form-group select {
+
+    height: 44px;
+
+    cursor: pointer;
+
+}
+
+
+/* =========================================================
+   INPUT FOCUS
+   ========================================================= */
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+
+    border-color: #555;
+
+    box-shadow:
+        0 0 0 3px rgba(0, 0, 0, 0.06);
+
+}
+
+
+/* =========================================================
+   FORM ACTIONS
+   ========================================================= */
+
+.form-actions {
+
+    display: flex;
+
+    gap: 10px;
+
+    margin-top: 25px;
+
+}
+
+
+.form-actions button {
+
+    flex: 1;
+
+    height: 44px;
+
+    border: none;
+
+    border-radius: 8px;
+
+    font-family: inherit;
+
+    font-size: 14px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+
+}
+
+
+/* =========================================================
+   CANCEL BUTTON
+   ========================================================= */
+
+.cancel-btn {
+
+    background: #eeeeee;
+
+    color: #333;
+
+}
+
+
+.cancel-btn:hover {
+
+    background: #dddddd;
+
+}
+
+
+/* =========================================================
+   SUBMIT BUTTON
+   ========================================================= */
+
+.submit-experience-btn {
+
+    background: #222222;
+
+    color: #ffffff;
+
+}
+
+
+.submit-experience-btn:hover {
+
+    background: #333333;
+
+}
+
+
+.submit-experience-btn:active,
+.cancel-btn:active {
+
+    transform: translateY(1px);
+
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+
+    .section-header {
+
+        top: 90px;
+
+        left: 10px;
+
+        right: 10px;
+
+    }
+
+
+    .emotion-legend {
+
+        top: 10px;
+
+        right: 10px;
+
+        min-width: 155px;
+
+    }
+
+
+    .add-experience-btn {
+
+        bottom: 15px;
+
+        left: 15px;
+
+        padding: 10px 16px;
+
+        font-size: 13px;
+
+    }
+
+
+    .experience-form-overlay {
+
+        padding: 15px;
+
+    }
+
+
+    .experience-form {
+
+        max-width: 100%;
+
+        padding: 25px 20px;
+
+    }
+
+
+    .experience-form h2 {
+
+        font-size: 21px;
+
+    }
+
+
+    .form-actions {
+
+        flex-direction: column;
+
+    }
+
+
+    .form-actions button {
+
+        width: 100%;
+
+    }
+
+}
+
+.experiences-error {
+    display: none;
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+
+    padding: 10px 16px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+
+    font-size: 14px;
+}
