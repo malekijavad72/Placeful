@@ -240,7 +240,10 @@ class Comment(Base):
 
     parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("comments.id"),
+        ForeignKey(
+            "comments.id",
+            ondelete="SET NULL"
+        ),
         nullable=True
     )
 

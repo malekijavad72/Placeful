@@ -1,5 +1,8 @@
-from pydantic import BaseModel
-from uuid import UUID
+import uuid
+
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ============================================================
@@ -76,9 +79,60 @@ class UserProfileUpdate(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: UUID
+    id: uuid.UUID
     username: str
     email: str
     display_name: str | None = None
     bio: str | None = None
     profile_image_url: str | None = None
+
+
+class CommentCreate(BaseModel):
+    content: str = Field(
+        min_length=1,
+        max_length=5000
+    )
+
+    parent_comment_id: uuid.UUID | None = None
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Comment cannot be empty")
+
+        return value
+
+
+class CommentResponse(BaseModel):
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    experience_id: uuid.UUID
+    parent_comment_id: uuid.UUID | None
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class CommentUpdate(BaseModel):
+    content: str = Field(
+        min_length=1,
+        max_length=5000
+    )
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Comment cannot be empty")
+
+        return value

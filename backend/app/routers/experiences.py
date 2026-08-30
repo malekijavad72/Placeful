@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from geoalchemy2 import WKTElement
+from datetime import datetime, timezone
 
 from app.database import get_db 
 from app.models import (
@@ -11,12 +12,16 @@ from app.models import (
     Emotion,
     ExperienceEmotion,
     User,
-    Like
+    Like,
+    Comment
 )
 from app.schemas import (
     ExperienceCreate,
     GeoJSONFeatureCollection,
-    ExperienceResponse
+    ExperienceResponse,
+    CommentCreate,
+    CommentResponse,
+    CommentUpdate
 )
 
 from app.core.exceptions import (
@@ -456,4 +461,254 @@ def get_like_count(
 
     return {
         "like_count": like_count
+    }
+
+
+# ============================================================
+# CREATE COMMENT
+# ============================================================
+
+@router.post(
+    "/{experience_id}/comments",
+    response_model=CommentResponse,
+    status_code=201
+)
+def create_comment(
+    experience_id: uuid.UUID,
+    comment: CommentCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Check that the experience exists
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+    # --------------------------------------------------------
+    # Check parent comment if this is a reply
+    # --------------------------------------------------------
+
+    parent_comment = None
+
+    if comment.parent_comment_id is not None:
+
+        parent_comment = (
+            db.query(Comment)
+            .filter(
+                Comment.id == comment.parent_comment_id
+            )
+            .first()
+        )
+
+        if parent_comment is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail="Parent comment not found"
+            )
+
+        if parent_comment.experience_id != experience_id:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Parent comment belongs to another experience"
+            )
+
+
+    # --------------------------------------------------------
+    # Create comment
+    # --------------------------------------------------------
+
+    new_comment = Comment(
+        user_id=current_user.id,
+        experience_id=experience_id,
+        parent_comment_id=comment.parent_comment_id,
+        content=comment.content
+    )
+
+    db.add(new_comment)
+
+    db.commit()
+    db.refresh(new_comment)
+
+    return new_comment
+
+
+# ============================================================
+# GET COMMENTS FOR AN EXPERIENCE
+# ============================================================
+
+@router.get(
+    "/{experience_id}/comments",
+    response_model=list[CommentResponse]
+)
+def get_comments(
+    experience_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Check that the experience exists
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+    # --------------------------------------------------------
+    # Get comments
+    # --------------------------------------------------------
+
+    comments = (
+        db.query(Comment)
+        .filter(
+            Comment.experience_id == experience_id
+        )
+        .order_by(
+            Comment.created_at.asc()
+        )
+        .all()
+    )
+
+    return comments
+
+
+# ============================================================
+# UPDATE COMMENT
+# ============================================================
+
+@router.patch(
+    "/comments/{comment_id}",
+    response_model=CommentResponse
+)
+def update_comment(
+    comment_id: uuid.UUID,
+    comment: CommentUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Find comment
+    # --------------------------------------------------------
+
+    existing_comment = (
+        db.query(Comment)
+        .filter(
+            Comment.id == comment_id
+        )
+        .first()
+    )
+
+    if existing_comment is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Comment not found"
+        )
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if existing_comment.user_id != current_user.id:
+
+        raise HTTPException(
+            status_code=403,
+            detail="You can only edit your own comments"
+        )
+
+    # --------------------------------------------------------
+    # Update content
+    # --------------------------------------------------------
+
+    existing_comment.content = comment.content
+
+    existing_comment.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(existing_comment)
+
+    return existing_comment
+
+
+# ============================================================
+# DELETE COMMENT
+# ============================================================
+
+@router.delete(
+    "/comments/{comment_id}"
+)
+def delete_comment(
+    comment_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Find comment
+    # --------------------------------------------------------
+
+    existing_comment = (
+        db.query(Comment)
+        .filter(
+            Comment.id == comment_id
+        )
+        .first()
+    )
+
+    if existing_comment is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Comment not found"
+        )
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if existing_comment.user_id != current_user.id:
+
+        raise HTTPException(
+            status_code=403,
+            detail="You can only delete your own comments"
+        )
+
+    # --------------------------------------------------------
+    # Delete comment
+    # --------------------------------------------------------
+
+    db.delete(existing_comment)
+
+    db.commit()
+
+    return {
+        "message": "Comment deleted successfully"
     }
