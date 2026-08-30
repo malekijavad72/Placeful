@@ -136,3 +136,14 @@ class CommentUpdate(BaseModel):
             raise ValueError("Comment cannot be empty")
 
         return value
+
+
+class MediaResponse(BaseModel):
+    id: uuid.UUID
+    experience_id: uuid.UUID
+    media_type: str
+    mime_type: str
+    original_filename: str
+    file_size: int
+    url: str
+    created_at: datetime

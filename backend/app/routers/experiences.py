@@ -1,10 +1,12 @@
 import json
+import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from geoalchemy2 import WKTElement
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app.database import get_db 
 from app.models import (
@@ -13,7 +15,8 @@ from app.models import (
     ExperienceEmotion,
     User,
     Like,
-    Comment
+    Comment,
+    ExperienceMedia
 )
 from app.schemas import (
     ExperienceCreate,
@@ -21,7 +24,8 @@ from app.schemas import (
     ExperienceResponse,
     CommentCreate,
     CommentResponse,
-    CommentUpdate
+    CommentUpdate,
+    MediaResponse
 )
 
 from app.core.exceptions import (
@@ -39,7 +43,16 @@ router = APIRouter(
     tags=["Experiences"]
 )
 
+UPLOAD_DIR = Path("uploads/experiences")
 
+ALLOWED_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+}
+
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_IMAGES_PER_EXPERIENCE = 10
 # ============================================================
 # GET ALL EXPERIENCES
 # ============================================================
@@ -226,6 +239,190 @@ def create_experience(
         db,
         current_user.id
     )
+
+
+# ============================================================
+# UPLOAD EXPERIENCE MEDIA
+# ============================================================
+
+@router.post(
+    "/{experience_id}/media",
+    status_code=201
+)
+async def upload_experience_media(
+    experience_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Check that the experience exists
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if experience.user_id != current_user.id:
+
+        raise HTTPException(
+            status_code=403,
+            detail="You can only add media to your own experiences"
+        )
+
+    # --------------------------------------------------------
+    # Check number of existing images
+    # --------------------------------------------------------
+
+    media_count = (
+        db.query(ExperienceMedia)
+        .filter(
+            ExperienceMedia.experience_id == experience_id
+        )
+        .count()
+    )
+
+    if media_count >= MAX_IMAGES_PER_EXPERIENCE:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum number of images reached for this experience"
+        )
+
+    # --------------------------------------------------------
+    # Check MIME type
+    # --------------------------------------------------------
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPEG, PNG, and WebP images are allowed"
+        )
+
+    # --------------------------------------------------------
+    # Check filename
+    # --------------------------------------------------------
+
+    if not file.filename:
+
+        raise HTTPException(
+            status_code=400,
+            detail="File must have a filename"
+        )
+
+    # --------------------------------------------------------
+    # Read file
+    # --------------------------------------------------------
+
+    contents = await file.read()
+
+    file_size = len(contents)
+
+    # --------------------------------------------------------
+    # Check file size
+    # --------------------------------------------------------
+
+    if file_size > MAX_FILE_SIZE:
+
+        raise HTTPException(
+            status_code=413,
+            detail="File size cannot exceed 10 MB"
+        )
+
+    # --------------------------------------------------------
+    # Generate storage path
+    # --------------------------------------------------------
+
+    experience_directory = (
+        UPLOAD_DIR / str(experience_id)
+    )
+
+    experience_directory.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    # --------------------------------------------------------
+    # Generate safe filename
+    # --------------------------------------------------------
+
+    extension = Path(file.filename).suffix.lower()
+
+    generated_filename = (
+        f"{uuid.uuid4()}{extension}"
+    )
+
+    storage_key = (
+        f"experiences/"
+        f"{experience_id}/"
+        f"{generated_filename}"
+    )
+
+    file_path = (
+        experience_directory /
+        generated_filename
+    )
+
+    # --------------------------------------------------------
+    # Save file
+    # --------------------------------------------------------
+
+    with open(file_path, "wb") as buffer:
+
+        buffer.write(contents)
+
+    # --------------------------------------------------------
+    # Create database record
+    # --------------------------------------------------------
+
+    new_media = ExperienceMedia(
+        experience_id=experience_id,
+        user_id=current_user.id,
+        storage_key=storage_key,
+        media_type="image",
+        mime_type=file.content_type,
+        original_filename=file.filename,
+        file_size=file_size
+    )
+
+    db.add(new_media)
+
+    db.commit()
+    db.refresh(new_media)
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
+
+    return {
+        "message": "Media uploaded successfully",
+        "id": str(new_media.id),
+        "experience_id": str(experience_id),
+        "storage_key": storage_key,
+        "media_type": new_media.media_type,
+        "mime_type": new_media.mime_type,
+        "original_filename": new_media.original_filename,
+        "file_size": new_media.file_size,
+        "created_at": new_media.created_at
+    }
+
 
 # ============================================================
 # LIKE EXPERIENCE
@@ -711,4 +908,215 @@ def delete_comment(
 
     return {
         "message": "Comment deleted successfully"
+    }
+
+# ============================================================
+# GET EXPERIENCE MEDIA
+# ============================================================
+
+@router.get(
+    "/{experience_id}/media",
+    response_model=list[MediaResponse]
+)
+def get_experience_media(
+    experience_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Check that the experience exists
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+    # --------------------------------------------------------
+    # Get media
+    # --------------------------------------------------------
+
+    media_items = (
+        db.query(ExperienceMedia)
+        .filter(
+            ExperienceMedia.experience_id == experience_id
+        )
+        .order_by(
+            ExperienceMedia.created_at
+        )
+        .all()
+    )
+
+    # --------------------------------------------------------
+    # Build response
+    # --------------------------------------------------------
+
+    results = []
+
+    for media in media_items:
+
+        results.append({
+            "id": media.id,
+            "experience_id": media.experience_id,
+            "media_type": media.media_type,
+            "mime_type": media.mime_type,
+            "original_filename": media.original_filename,
+            "file_size": media.file_size,
+            "url": f"/uploads/{media.storage_key}",
+            "created_at": media.created_at
+        })
+
+    return results
+
+# ============================================================
+# DELETE EXPERIENCE MEDIA
+# ============================================================
+
+@router.delete(
+    "/media/{media_id}"
+)
+def delete_experience_media(
+    media_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Find media
+    # --------------------------------------------------------
+
+    media = (
+        db.query(ExperienceMedia)
+        .filter(
+            ExperienceMedia.id == media_id
+        )
+        .first()
+    )
+
+    if media is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Media not found"
+        )
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if media.user_id != current_user.id:
+
+        raise HTTPException(
+            status_code=403,
+            detail="You can only delete your own media"
+        )
+
+    # --------------------------------------------------------
+    # Delete physical file
+    # --------------------------------------------------------
+
+    file_path = Path("uploads") / media.storage_key
+
+    if file_path.exists():
+
+        file_path.unlink()
+
+    # --------------------------------------------------------
+    # Delete database record
+    # --------------------------------------------------------
+
+    db.delete(media)
+
+    db.commit()
+
+    return {
+        "message": "Media deleted successfully"
+    }
+
+# ============================================================
+# DELETE EXPERIENCE
+# ============================================================
+
+@router.delete(
+    "/{experience_id}"
+)
+def delete_experience(
+    experience_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Find experience
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if experience.user_id != current_user.id:
+
+        raise HTTPException(
+            status_code=403,
+            detail="You can only delete your own experiences"
+        )
+
+    # --------------------------------------------------------
+    # Find associated media
+    # --------------------------------------------------------
+
+    media_items = (
+        db.query(ExperienceMedia)
+        .filter(
+            ExperienceMedia.experience_id == experience_id
+        )
+        .all()
+    )
+
+    # --------------------------------------------------------
+    # Delete physical media files
+    # --------------------------------------------------------
+
+    for media in media_items:
+
+        file_path = Path("uploads") / media.storage_key
+
+        if file_path.exists():
+            file_path.unlink()
+
+    # --------------------------------------------------------
+    # Delete experience
+    # --------------------------------------------------------
+
+    db.delete(experience)
+
+    db.commit()
+
+    return {
+        "message": "Experience deleted successfully"
     }

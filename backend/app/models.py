@@ -8,9 +8,11 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     SmallInteger,
+    BigInteger,
     String,
     Text,
-    text
+    text,
+    func
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -374,4 +376,60 @@ class UserFollow(Base):
         DateTime(timezone=True),
         nullable=False,
         server_default=text("now()")
+    )
+
+class ExperienceMedia(Base):
+    __tablename__ = "experience_media"
+
+    id = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()")
+    )
+
+    experience_id = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "experiences.id",
+            ondelete="CASCADE"
+        ),
+        nullable=False
+    )
+
+    user_id = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    storage_key = mapped_column(
+        Text,
+        nullable=False
+    )
+
+    media_type = mapped_column(
+        String,
+        nullable=False,
+        default="image"
+    )
+
+    mime_type = mapped_column(
+        String,
+        nullable=False
+    )
+
+    original_filename = mapped_column(
+        Text,
+        nullable=False
+    )
+
+    file_size = mapped_column(
+        BigInteger,
+        nullable=False
+    )
+
+    created_at = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
     )
