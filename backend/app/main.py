@@ -7,6 +7,8 @@ from app.routers import auth_test
 
 from app.routers import auth
 
+from app.routers import users
+
 app = FastAPI()
 
 
@@ -49,3 +51,4 @@ def root():
 app.include_router(experiences.router)
 app.include_router(auth_test.router)
 app.include_router(auth.router)
+app.include_router(users.router)

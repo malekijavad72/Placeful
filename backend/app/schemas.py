@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from uuid import UUID
 
 
 # ============================================================
@@ -68,8 +69,14 @@ class UserCreate(BaseModel):
     password: str
 
 
+class UserProfileUpdate(BaseModel):
+    display_name: str | None = None
+    bio: str | None = None
+    profile_image_url: str | None = None
+
+
 class UserResponse(BaseModel):
-    id: str
+    id: UUID
     username: str
     email: str
     display_name: str | None = None

@@ -1,5 +1,5 @@
 import json
-
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -10,7 +10,8 @@ from app.models import (
     Experience,
     Emotion,
     ExperienceEmotion,
-    User
+    User,
+    Like
 )
 from app.schemas import (
     ExperienceCreate,
@@ -25,7 +26,6 @@ from app.core.exceptions import (
 
 from app.services.experience_service import create_experience as create_experience_service
 
-from app.models import User
 from app.dependencies import get_current_user
 
 
@@ -221,3 +221,239 @@ def create_experience(
         db,
         current_user.id
     )
+
+# ============================================================
+# LIKE EXPERIENCE
+# ============================================================
+
+@router.post(
+    "/{experience_id}/like",
+    status_code=201
+)
+def like_experience(
+    experience_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Check that the experience exists
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+
+    # --------------------------------------------------------
+    # Check whether the user already liked it
+    # --------------------------------------------------------
+
+    existing_like = (
+        db.query(Like)
+        .filter(
+            Like.user_id == current_user.id,
+            Like.experience_id == experience_id
+        )
+        .first()
+    )
+
+    if existing_like is not None:
+
+        raise HTTPException(
+            status_code=409,
+            detail="Experience already liked"
+        )
+
+
+    # --------------------------------------------------------
+    # Create like
+    # --------------------------------------------------------
+
+    new_like = Like(
+        user_id=current_user.id,
+        experience_id=experience_id
+    )
+
+    db.add(new_like)
+
+    db.commit()
+
+
+    return {
+        "message": "Experience liked successfully"
+    }
+
+
+# ============================================================
+# UNLIKE EXPERIENCE
+# ============================================================
+
+@router.delete(
+    "/{experience_id}/like"
+)
+def unlike_experience(
+    experience_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Check that the experience exists
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+    # --------------------------------------------------------
+    # Find the user's like
+    # --------------------------------------------------------
+
+    existing_like = (
+        db.query(Like)
+        .filter(
+            Like.user_id == current_user.id,
+            Like.experience_id == experience_id
+        )
+        .first()
+    )
+
+    if existing_like is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not liked"
+        )
+
+    # --------------------------------------------------------
+    # Delete the like
+    # --------------------------------------------------------
+
+    db.delete(existing_like)
+
+    db.commit()
+
+    return {
+        "message": "Experience unliked successfully"
+    }
+
+
+# ============================================================
+# GET LIKE STATUS
+# ============================================================
+
+@router.get(
+    "/{experience_id}/like-status"
+)
+def get_like_status(
+    experience_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Check that the experience exists
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+    # --------------------------------------------------------
+    # Check whether the current user liked it
+    # --------------------------------------------------------
+
+    existing_like = (
+        db.query(Like)
+        .filter(
+            Like.user_id == current_user.id,
+            Like.experience_id == experience_id
+        )
+        .first()
+    )
+
+    return {
+        "liked": existing_like is not None
+    }
+
+
+# ============================================================
+# GET LIKE COUNT
+# ============================================================
+
+@router.get(
+    "/{experience_id}/like-count"
+)
+def get_like_count(
+    experience_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Check that the experience exists
+    # --------------------------------------------------------
+
+    experience = (
+        db.query(Experience)
+        .filter(
+            Experience.id == experience_id
+        )
+        .first()
+    )
+
+    if experience is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Experience not found"
+        )
+
+    # --------------------------------------------------------
+    # Count likes
+    # --------------------------------------------------------
+
+    like_count = (
+        db.query(Like)
+        .filter(
+            Like.experience_id == experience_id
+        )
+        .count()
+    )
+
+    return {
+        "like_count": like_count
+    }

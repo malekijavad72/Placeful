@@ -346,3 +346,29 @@ class User(Base):
         nullable=False,
         server_default=text("now()")
     )
+
+    # ============================================================
+# USER FOLLOWS
+# ============================================================
+
+class UserFollow(Base):
+
+    __tablename__ = "user_follows"
+
+    follower_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        primary_key=True
+    )
+
+    following_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        primary_key=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()")
+    )
