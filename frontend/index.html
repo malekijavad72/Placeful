@@ -12,17 +12,13 @@
 
     <title>Places Project</title>
 
-
     <!-- Main CSS -->
-
     <link
         rel="stylesheet"
         href="css/style.css"
     >
 
-
     <!-- OpenLayers CSS -->
-
     <link
         rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/ol@latest/ol.css"
@@ -33,18 +29,76 @@
 
 <body>
 
-
     <!-- =====================================================
          HEADER
          ===================================================== -->
 
     <header>
 
-        <h1>Places Project</h1>
+        <div class="header-brand">
 
-        <p>
-            Where places become memories.
-        </p>
+            <h1>
+                Places Project
+            </h1>
+
+            <p>
+                Where places become memories.
+            </p>
+
+        </div>
+
+
+        <!-- =================================================
+             AUTHENTICATION
+             ================================================= -->
+
+        <div class="auth-actions">
+
+            <!-- SIGN IN -->
+
+            <button
+                id="sign-in-btn"
+                class="auth-btn"
+                type="button"
+            >
+                Sign In
+            </button>
+
+
+            <!-- SIGN UP -->
+
+            <button
+                id="sign-up-btn"
+                class="auth-btn auth-btn-primary"
+                type="button"
+            >
+                Sign Up
+            </button>
+
+
+            <!-- LOGGED-IN USER -->
+
+            <div
+                id="user-menu"
+                class="user-menu"
+                style="display: none;"
+            >
+
+                <span id="logged-in-username">
+                </span>
+
+
+                <button
+                    id="logout-btn"
+                    class="auth-btn"
+                    type="button"
+                >
+                    Log Out
+                </button>
+
+            </div>
+
+        </div>
 
     </header>
 
@@ -79,23 +133,29 @@
             </div>
 
 
-            <!-- =============================================
-                 MAP CONTAINER
-                 ============================================= -->
+            <!-- =================================================
+                 MAP
+                 ================================================= -->
 
             <div id="full-map-container">
 
-
-                <!-- OpenLayers map -->
-
                 <div id="full-map"></div>
 
-                <div id="experiences-error" class="experiences-error">
-                    Unable to load experiences. Please try again.
+
+                <!-- EXPERIENCE LOAD ERROR -->
+
+                <div
+                    id="experiences-error"
+                    class="experiences-error"
+                >
+                    Unable to load experiences.
+                    Please try again.
                 </div>
-                <!-- =========================================
+
+
+                <!-- =================================================
                      ADD EXPERIENCE BUTTON
-                     ========================================= -->
+                     ================================================= -->
 
                 <button
                     id="add-experience-btn"
@@ -106,24 +166,20 @@
                 </button>
 
 
-                <!-- =========================================
+                <!-- =================================================
                      EMOTION LEGEND
-                     ========================================= -->
+                     ================================================= -->
 
                 <div
                     id="emotion-legend"
                     class="emotion-legend"
                 >
 
-
-                    <!-- Legend header -->
-
                     <div class="legend-header">
 
                         <span>
                             Filter by emotion
                         </span>
-
 
                         <button
                             id="legend-toggle"
@@ -136,22 +192,16 @@
                     </div>
 
 
-                    <!-- Legend content -->
-
                     <div
                         id="legend-content"
                         class="legend-content"
                     >
-
-
-                        <!-- ALL -->
 
                         <button
                             class="legend-item active"
                             data-emotion="all"
                             type="button"
                         >
-
                             <span class="legend-emoji">
                                 🌎
                             </span>
@@ -159,18 +209,14 @@
                             <span class="legend-label">
                                 All
                             </span>
-
                         </button>
 
-
-                        <!-- HAPPY -->
 
                         <button
                             class="legend-item"
                             data-emotion="happy"
                             type="button"
                         >
-
                             <span class="legend-emoji">
                                 😊
                             </span>
@@ -178,18 +224,14 @@
                             <span class="legend-label">
                                 Happy
                             </span>
-
                         </button>
 
-
-                        <!-- SAD -->
 
                         <button
                             class="legend-item"
                             data-emotion="sad"
                             type="button"
                         >
-
                             <span class="legend-emoji">
                                 😢
                             </span>
@@ -197,18 +239,14 @@
                             <span class="legend-label">
                                 Sad
                             </span>
-
                         </button>
 
-
-                        <!-- PEACEFUL -->
 
                         <button
                             class="legend-item"
                             data-emotion="peaceful"
                             type="button"
                         >
-
                             <span class="legend-emoji">
                                 😌
                             </span>
@@ -216,18 +254,14 @@
                             <span class="legend-label">
                                 Peaceful
                             </span>
-
                         </button>
 
-
-                        <!-- EXCITED -->
 
                         <button
                             class="legend-item"
                             data-emotion="excited"
                             type="button"
                         >
-
                             <span class="legend-emoji">
                                 🤩
                             </span>
@@ -235,18 +269,14 @@
                             <span class="legend-label">
                                 Excited
                             </span>
-
                         </button>
 
-
-                        <!-- NOSTALGIC -->
 
                         <button
                             class="legend-item"
                             data-emotion="nostalgic"
                             type="button"
                         >
-
                             <span class="legend-emoji">
                                 🥹
                             </span>
@@ -254,18 +284,14 @@
                             <span class="legend-label">
                                 Nostalgic
                             </span>
-
                         </button>
 
-
-                        <!-- LOVE -->
 
                         <button
                             class="legend-item"
                             data-emotion="love"
                             type="button"
                         >
-
                             <span class="legend-emoji">
                                 ❤️
                             </span>
@@ -273,7 +299,6 @@
                             <span class="legend-label">
                                 Love
                             </span>
-
                         </button>
 
                     </div>
@@ -285,39 +310,184 @@
         </section>
 
 
-        <!-- =================================================
+        <!-- =====================================================
              EXPERIENCE POPUP
-             ================================================= -->
+             ===================================================== -->
 
         <div
             id="popup"
             class="popup"
         >
 
+            <!-- CLOSE -->
+
             <button
                 id="popup-close"
                 type="button"
                 aria-label="Close experience"
+                class="popup-close"
             >
                 ×
             </button>
 
 
-            <h2 id="popup-title">
-                Experience
-            </h2>
+            <!-- =================================================
+                 EXPERIENCE CONTENT
+                 ================================================= -->
+
+            <div class="popup-experience">
+
+                <h2 id="popup-title">
+                    Experience
+                </h2>
 
 
-            <p id="popup-story">
-                Story
-            </p>
+                <p id="popup-story">
+                    Story
+                </p>
+
+
+                <!-- =================================================
+                     LIKE
+                     ================================================= -->
+
+                <div class="popup-like-container">
+
+                    <button
+                        id="popup-like-btn"
+                        class="popup-like-btn"
+                        type="button"
+                    >
+
+                        <span
+                            id="popup-like-icon"
+                            class="popup-like-icon"
+                        >
+                            ♡
+                        </span>
+
+
+                        <span
+                            id="popup-like-text"
+                            class="popup-like-text"
+                        >
+                            Like
+                        </span>
+
+
+                        <span
+                            id="popup-like-count"
+                            class="popup-like-count"
+                        >
+                            0
+                        </span>
+
+                    </button>
+
+
+                    <span
+                        id="popup-like-message"
+                        class="popup-like-message"
+                    ></span>
+
+                </div>
+
+            </div>
+
+
+            <!-- =====================================================
+                 COMMENTS
+                 ===================================================== -->
+
+            <div
+                id="comments-section"
+                class="comments-section"
+            >
+
+                <!-- COMMENTS HEADER -->
+
+                <div class="comments-header">
+
+                    <h3>
+                        Comments
+                    </h3>
+
+
+                    <span
+                        id="comments-count"
+                        class="comments-count"
+                    >
+                        0
+                    </span>
+
+                </div>
+
+
+                <!-- =================================================
+                     ADD COMMENT
+                     ================================================= -->
+
+                <div
+                    id="comment-form-container"
+                    class="comment-form-container"
+                >
+
+                    <textarea
+                        id="comment-input"
+                        class="comment-input"
+                        rows="2"
+                        maxlength="5000"
+                        placeholder="Share your thoughts..."
+                    ></textarea>
+
+
+                    <div class="comment-form-actions">
+
+                        <span
+                            id="comment-login-message"
+                            class="comment-login-message"
+                        ></span>
+
+
+                        <button
+                            id="submit-comment-btn"
+                            type="button"
+                            class="submit-comment-btn"
+                        >
+                            Comment
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     COMMENTS LIST
+                     ================================================= -->
+
+                <div
+                    id="comments-list"
+                    class="comments-list"
+                >
+
+                    <div
+                        id="comments-loading"
+                        class="comments-message"
+                    >
+                        Loading comments...
+                    </div>
+
+                </div>
+
+            </div>
 
         </div>
 
 
-        <!-- =================================================
+        <!-- =====================================================
              ADD EXPERIENCE FORM
-             ================================================= -->
+             ===================================================== -->
 
         <div
             id="experience-form-overlay"
@@ -325,9 +495,6 @@
         >
 
             <div class="experience-form">
-
-
-                <!-- Close button -->
 
                 <button
                     id="close-experience-form"
@@ -339,8 +506,6 @@
                 </button>
 
 
-                <!-- Heading -->
-
                 <h2>
                     Add Experience
                 </h2>
@@ -351,20 +516,13 @@
                 </p>
 
 
-                <!-- =========================================
-                     FORM
-                     ========================================= -->
-
                 <form id="experience-form">
-
 
                     <!-- TITLE -->
 
                     <div class="form-group">
 
-                        <label
-                            for="experience-title"
-                        >
+                        <label for="experience-title">
                             Title
                         </label>
 
@@ -384,9 +542,7 @@
 
                     <div class="form-group">
 
-                        <label
-                            for="experience-description"
-                        >
+                        <label for="experience-description">
                             Story
                         </label>
 
@@ -406,9 +562,7 @@
 
                     <div class="form-group">
 
-                        <label
-                            for="experience-emotion"
-                        >
+                        <label for="experience-emotion">
                             Emotion
                         </label>
 
@@ -423,31 +577,25 @@
                                 Select an emotion
                             </option>
 
-
                             <option value="happy">
                                 😊 Happy
                             </option>
-
 
                             <option value="sad">
                                 😢 Sad
                             </option>
 
-
                             <option value="peaceful">
                                 😌 Peaceful
                             </option>
-
 
                             <option value="excited">
                                 🤩 Excited
                             </option>
 
-
                             <option value="nostalgic">
                                 🥹 Nostalgic
                             </option>
-
 
                             <option value="love">
                                 ❤️ Love
@@ -458,10 +606,9 @@
                     </div>
 
 
-                    <!-- BUTTONS -->
+                    <!-- FORM ACTIONS -->
 
                     <div class="form-actions">
-
 
                         <button
                             type="button"
@@ -491,7 +638,7 @@
 
 
     <!-- =====================================================
-         OPENLAYERS JAVASCRIPT
+         JAVASCRIPT
          ===================================================== -->
 
     <script
@@ -499,13 +646,18 @@
     ></script>
 
 
-    <!-- =====================================================
-         PROJECT JAVASCRIPT
-         ===================================================== -->
+    <!--
+        map.js first because it initializes the map.
+    -->
 
-    <script
-        src="js/map.js"
-    ></script>
+    <script src="js/map.js"></script>
+
+
+    <!--
+        auth.js handles authentication.
+    -->
+
+    <script src="js/auth.js"></script>
 
 
 </body>
