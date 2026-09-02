@@ -925,6 +925,7 @@ async function unlikeExperience(
 
 // Current experience whose comments are displayed
 let currentCommentsExperienceId = null;
+let currentComments = [];
 
 
 // ============================================================
@@ -1011,13 +1012,10 @@ async function loadComments(experienceId) {
         const comments =
             await response.json();
 
-
-        console.log(
-            "Comments loaded:",
-            comments
-        );
-
-
+        currentComments =
+            Array.isArray(comments)
+                ? comments
+                : [];
         // ----------------------------------------------------
         // Update count
         // ----------------------------------------------------
@@ -1089,7 +1087,6 @@ async function loadComments(experienceId) {
 
 }
 
-
 // ============================================================
 // RENDER COMMENTS
 // ============================================================
@@ -1098,17 +1095,25 @@ function renderComments(comments) {
 
     commentsList.innerHTML = "";
 
-
     // --------------------------------------------------------
     // Separate root comments and replies
     // --------------------------------------------------------
 
     const rootComments =
         comments.filter(
-            comment =>
-                comment.parent_comment_id === null
+            function (comment) {
+
+                return (
+                    comment.parent_comment_id === null
+                );
+
+            }
         );
 
+
+    // --------------------------------------------------------
+    // Build reply map
+    // --------------------------------------------------------
 
     const repliesMap = {};
 
@@ -1129,12 +1134,16 @@ function renderComments(comments) {
                     repliesMap[
                         comment.parent_comment_id
                     ] = [];
+
                 }
 
 
                 repliesMap[
                     comment.parent_comment_id
-                ].push(comment);
+                ].push(
+                    comment
+                );
+
             }
 
         }
@@ -1183,12 +1192,12 @@ function renderComment(
         commentElement.classList.add(
             "reply"
         );
+
     }
 
 
     commentElement.dataset.commentId =
         comment.id;
-
 
     // --------------------------------------------------------
     // Header
@@ -1217,10 +1226,50 @@ function renderComment(
     date.className =
         "comment-date";
 
-    date.textContent =
-        formatCommentDate(
-            comment.created_at
+    const createdAt =
+        new Date(comment.created_at);
+
+    const updatedAt =
+        new Date(comment.updated_at);
+
+    const hasValidCreatedAt =
+        !Number.isNaN(
+            createdAt.getTime()
         );
+
+    const hasValidUpdatedAt =
+        !Number.isNaN(
+            updatedAt.getTime()
+        );
+
+    // The backend currently returns both timestamps.
+    // We use a small tolerance because created_at and
+    // updated_at can differ by milliseconds when a comment
+    // is first created.
+    const wasEdited =
+        hasValidCreatedAt &&
+        hasValidUpdatedAt &&
+        (
+            updatedAt.getTime() -
+            createdAt.getTime()
+        ) > 1000;
+
+    if (wasEdited) {
+
+        date.textContent =
+            `Edited · ${formatCommentDate(
+                comment.updated_at
+            )}`;
+
+    }
+    else {
+
+        date.textContent =
+            formatCommentDate(
+                comment.created_at
+            );
+
+    }
 
 
     header.appendChild(author);
@@ -2137,13 +2186,6 @@ async function updateComment(
             );
         }
 
-
-        console.log(
-            "Comment updated:",
-            data
-        );
-
-
         await loadComments(
             currentCommentsExperienceId
         );
@@ -2174,7 +2216,6 @@ async function updateComment(
     }
 
 }
-
 
 // ============================================================
 // DELETE COMMENT
@@ -2231,6 +2272,7 @@ async function deleteComment(
                 data.detail ||
                 `HTTP error: ${response.status}`
             );
+
         }
 
 
@@ -2261,7 +2303,6 @@ async function deleteComment(
     }
 
 }
-
 
 // ============================================================
 // COMMENT LOGIN STATE

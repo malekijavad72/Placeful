@@ -53,6 +53,15 @@ ALLOWED_IMAGE_TYPES = {
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_IMAGES_PER_EXPERIENCE = 10
+
+MIME_TO_EXTENSION = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp"
+}
+
+UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
 # ============================================================
 # GET ALL EXPERIENCES
 # ============================================================
@@ -245,6 +254,10 @@ def create_experience(
 # UPLOAD EXPERIENCE MEDIA
 # ============================================================
 
+# ============================================================
+# UPLOAD EXPERIENCE MEDIA
+# ============================================================
+
 @router.post(
     "/{experience_id}/media",
     status_code=201
@@ -327,28 +340,9 @@ async def upload_experience_media(
             detail="File must have a filename"
         )
 
-    # --------------------------------------------------------
-    # Read file
-    # --------------------------------------------------------
-
-    contents = await file.read()
-
-    file_size = len(contents)
-
-    # --------------------------------------------------------
-    # Check file size
-    # --------------------------------------------------------
-
-    if file_size > MAX_FILE_SIZE:
-
-        raise HTTPException(
-            status_code=413,
-            detail="File size cannot exceed 10 MB"
-        )
-
-    # --------------------------------------------------------
-    # Generate storage path
-    # --------------------------------------------------------
+    # ========================================================
+    # GENERATE STORAGE PATH
+    # ========================================================
 
     experience_directory = (
         UPLOAD_DIR / str(experience_id)
@@ -361,9 +355,17 @@ async def upload_experience_media(
 
     # --------------------------------------------------------
     # Generate safe filename
+    #
+    # We do NOT use the user's filename as the stored filename.
     # --------------------------------------------------------
 
-    extension = Path(file.filename).suffix.lower()
+    extension_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp"
+    }
+
+    extension = extension_map[file.content_type]
 
     generated_filename = (
         f"{uuid.uuid4()}{extension}"
@@ -380,50 +382,189 @@ async def upload_experience_media(
         generated_filename
     )
 
-    # --------------------------------------------------------
-    # Save file
-    # --------------------------------------------------------
+    # ========================================================
+    # STREAM FILE TO DISK
+    # ========================================================
 
-    with open(file_path, "wb") as buffer:
+    CHUNK_SIZE = 1024 * 1024  # 1 MB
 
-        buffer.write(contents)
+    file_size = 0
+    first_chunk = b""
 
-    # --------------------------------------------------------
-    # Create database record
-    # --------------------------------------------------------
+    try:
 
-    new_media = ExperienceMedia(
-        experience_id=experience_id,
-        user_id=current_user.id,
-        storage_key=storage_key,
-        media_type="image",
-        mime_type=file.content_type,
-        original_filename=file.filename,
-        file_size=file_size
-    )
+        with open(file_path, "wb") as buffer:
 
-    db.add(new_media)
+            while True:
 
-    db.commit()
-    db.refresh(new_media)
+                chunk = await file.read(CHUNK_SIZE)
 
-    # --------------------------------------------------------
-    # Response
-    # --------------------------------------------------------
+                if not chunk:
+                    break
 
-    return {
-        "message": "Media uploaded successfully",
-        "id": str(new_media.id),
-        "experience_id": str(experience_id),
-        "storage_key": storage_key,
-        "media_type": new_media.media_type,
-        "mime_type": new_media.mime_type,
-        "original_filename": new_media.original_filename,
-        "file_size": new_media.file_size,
-        "created_at": new_media.created_at
-    }
+                # ------------------------------------------------
+                # Keep the first bytes for basic file signature
+                # validation.
+                # ------------------------------------------------
 
+                if not first_chunk:
 
+                    first_chunk = chunk[:64]
+
+                # ------------------------------------------------
+                # Update size
+                # ------------------------------------------------
+
+                file_size += len(chunk)
+
+                # ------------------------------------------------
+                # Enforce maximum size while streaming
+                #
+                # We never allow more than MAX_FILE_SIZE bytes
+                # to be written to disk.
+                # ------------------------------------------------
+
+                if file_size > MAX_FILE_SIZE:
+
+                    raise HTTPException(
+                        status_code=413,
+                        detail="File size cannot exceed 10 MB"
+                    )
+
+                # ------------------------------------------------
+                # Write chunk
+                # ------------------------------------------------
+
+                buffer.write(chunk)
+
+        # ========================================================
+        # BASIC FILE SIGNATURE VALIDATION
+        # ========================================================
+
+        is_valid_image = False
+
+        # JPEG
+        if (
+            file.content_type == "image/jpeg"
+            and first_chunk.startswith(b"\xff\xd8\xff")
+        ):
+            is_valid_image = True
+
+        # PNG
+        elif (
+            file.content_type == "image/png"
+            and first_chunk.startswith(
+                b"\x89PNG\r\n\x1a\n"
+            )
+        ):
+            is_valid_image = True
+
+        # WebP
+        elif (
+            file.content_type == "image/webp"
+            and len(first_chunk) >= 12
+            and first_chunk.startswith(b"RIFF")
+            and first_chunk[8:12] == b"WEBP"
+        ):
+            is_valid_image = True
+
+        if not is_valid_image:
+
+            raise HTTPException(
+                status_code=400,
+                detail="The uploaded file is not a valid JPEG, PNG, or WebP image"
+            )
+
+        # --------------------------------------------------------
+        # Empty file check
+        # --------------------------------------------------------
+
+        if file_size == 0:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is empty"
+            )
+
+        # ========================================================
+        # CREATE DATABASE RECORD
+        # ========================================================
+
+        new_media = ExperienceMedia(
+            experience_id=experience_id,
+            user_id=current_user.id,
+            storage_key=storage_key,
+            media_type="image",
+            mime_type=file.content_type,
+            original_filename=file.filename,
+            file_size=file_size
+        )
+
+        db.add(new_media)
+
+        try:
+
+            db.commit()
+
+        except Exception:
+
+            db.rollback()
+
+            # ----------------------------------------------------
+            # Database failed, so remove the file we just created.
+            # ----------------------------------------------------
+
+            if file_path.exists():
+
+                file_path.unlink()
+
+            raise
+
+        db.refresh(new_media)
+
+        # --------------------------------------------------------
+        # Response
+        # --------------------------------------------------------
+
+        return {
+            "message": "Media uploaded successfully",
+            "id": str(new_media.id),
+            "experience_id": str(experience_id),
+            "storage_key": storage_key,
+            "media_type": new_media.media_type,
+            "mime_type": new_media.mime_type,
+            "original_filename": new_media.original_filename,
+            "file_size": new_media.file_size,
+            "created_at": new_media.created_at
+        }
+
+    except HTTPException:
+
+        # --------------------------------------------------------
+        # Remove partially uploaded file if validation failed.
+        # --------------------------------------------------------
+
+        if file_path.exists():
+
+            file_path.unlink()
+
+        raise
+
+    except Exception:
+
+        # --------------------------------------------------------
+        # Remove partially uploaded file for unexpected errors.
+        # --------------------------------------------------------
+
+        if file_path.exists():
+
+            file_path.unlink()
+
+        raise
+
+    finally:
+
+        await file.close()
 # ============================================================
 # LIKE EXPERIENCE
 # ============================================================
@@ -977,6 +1118,249 @@ def get_experience_media(
         })
 
     return results
+
+# ============================================================
+# UPDATE EXPERIENCE MEDIA
+# ============================================================
+
+@router.put(
+    "/media/{media_id}"
+)
+async def update_experience_media(
+    media_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    # --------------------------------------------------------
+    # Find media
+    # --------------------------------------------------------
+
+    media = (
+        db.query(ExperienceMedia)
+        .filter(
+            ExperienceMedia.id == media_id
+        )
+        .first()
+    )
+
+    if media is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Media not found"
+        )
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if media.user_id != current_user.id:
+
+        raise HTTPException(
+            status_code=403,
+            detail="You can only update your own media"
+        )
+
+    # --------------------------------------------------------
+    # Check filename
+    # --------------------------------------------------------
+
+    if not file.filename:
+
+        raise HTTPException(
+            status_code=400,
+            detail="File must have a filename"
+        )
+
+    # --------------------------------------------------------
+    # Check MIME type
+    # --------------------------------------------------------
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPEG, PNG, and WebP images are allowed"
+        )
+
+    # --------------------------------------------------------
+    # Generate safe storage filename
+    # --------------------------------------------------------
+
+    extension = MIME_TO_EXTENSION[file.content_type]
+
+    generated_filename = (
+        f"{uuid.uuid4()}{extension}"
+    )
+
+    experience_directory = (
+        UPLOAD_DIR /
+        str(media.experience_id)
+    )
+
+    experience_directory.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    new_storage_key = (
+        f"experiences/"
+        f"{media.experience_id}/"
+        f"{generated_filename}"
+    )
+
+    new_file_path = (
+        experience_directory /
+        generated_filename
+    )
+
+    # --------------------------------------------------------
+    # Save new file in chunks
+    # --------------------------------------------------------
+
+    file_size = 0
+
+    try:
+
+        with open(
+            new_file_path,
+            "wb"
+        ) as buffer:
+
+            while True:
+
+                chunk = await file.read(
+                    UPLOAD_CHUNK_SIZE
+                )
+
+                if not chunk:
+                    break
+
+                file_size += len(chunk)
+
+                # ------------------------------------------------
+                # Enforce maximum file size while streaming
+                # ------------------------------------------------
+
+                if file_size > MAX_FILE_SIZE:
+
+                    raise HTTPException(
+                        status_code=413,
+                        detail="File size cannot exceed 10 MB"
+                    )
+
+                buffer.write(chunk)
+
+    except HTTPException:
+
+        # Remove partially written file
+
+        if new_file_path.exists():
+
+            new_file_path.unlink()
+
+        raise
+
+    except Exception:
+
+        # Remove partially written file
+
+        if new_file_path.exists():
+
+            new_file_path.unlink()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save media file"
+        )
+
+    finally:
+
+        await file.close()
+
+    # --------------------------------------------------------
+    # Keep reference to old file
+    # --------------------------------------------------------
+
+    old_storage_key = media.storage_key
+
+    old_file_path = (
+        Path("uploads") /
+        old_storage_key
+    )
+
+    # --------------------------------------------------------
+    # Update database record
+    # --------------------------------------------------------
+
+    media.storage_key = new_storage_key
+    media.media_type = "image"
+    media.mime_type = file.content_type
+    media.original_filename = Path(
+        file.filename
+    ).name
+    media.file_size = file_size
+
+    try:
+
+        db.commit()
+
+        db.refresh(media)
+
+    except Exception:
+
+        db.rollback()
+
+        # New file is no longer referenced by DB,
+        # so remove it.
+
+        if new_file_path.exists():
+
+            new_file_path.unlink()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update media record"
+        )
+
+    # --------------------------------------------------------
+    # Delete old physical file
+    # --------------------------------------------------------
+
+    if (
+        old_file_path.exists()
+        and old_file_path != new_file_path
+    ):
+
+        try:
+
+            old_file_path.unlink()
+
+        except OSError:
+
+            # The database update succeeded, so we don't
+            # fail the request because cleanup of the old
+            # file failed.
+
+            pass
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
+
+    return {
+        "message": "Media updated successfully",
+        "id": str(media.id),
+        "experience_id": str(media.experience_id),
+        "media_type": media.media_type,
+        "mime_type": media.mime_type,
+        "original_filename": media.original_filename,
+        "file_size": media.file_size,
+        "url": f"/uploads/{media.storage_key}",
+        "created_at": media.created_at
+    }
 
 # ============================================================
 # DELETE EXPERIENCE MEDIA
