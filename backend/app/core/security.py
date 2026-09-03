@@ -1,4 +1,5 @@
 import os
+import hashlib
 
 from datetime import datetime, timedelta, timezone
 
@@ -7,6 +8,10 @@ import jwt
 from dotenv import load_dotenv
 
 from pwdlib import PasswordHash
+
+from sqlalchemy.orm import Session
+
+from app.models import RefreshSession
 
 
 # ============================================================
@@ -87,3 +92,86 @@ def create_access_token(
         SECRET_KEY,
         algorithm=ALGORITHM
     )
+
+def create_refresh_token(
+    user_id: str
+) -> str:
+
+    expire = (
+        datetime.now(timezone.utc)
+        +
+        timedelta(
+            days=30
+        )
+    )
+
+    payload = {
+        "sub": user_id,
+        "exp": expire,
+        "type": "refresh"
+    }
+
+    return jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+
+def hash_refresh_token(
+    refresh_token: str
+) -> str:
+
+    return hashlib.sha256(
+        refresh_token.encode("utf-8")
+    ).hexdigest()
+
+# ============================================================
+# REFRESH TOKEN HASHING
+# ============================================================
+
+def hash_refresh_token(
+    refresh_token: str
+) -> str:
+
+    return hashlib.sha256(
+        refresh_token.encode("utf-8")
+    ).hexdigest()
+
+
+# ============================================================
+# SAVE REFRESH SESSION
+# ============================================================
+
+def save_refresh_session(
+    db: Session,
+    user_id,
+    refresh_token: str
+):
+
+    token_hash = hash_refresh_token(
+        refresh_token
+    )
+
+    expires_at = (
+        datetime.now(timezone.utc)
+        +
+        timedelta(days=30)
+    )
+
+    refresh_session = RefreshSession(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at
+    )
+
+    db.add(
+        refresh_session
+    )
+
+    db.commit()
+
+    db.refresh(
+        refresh_session
+    )
+
+    return refresh_session

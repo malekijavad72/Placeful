@@ -7,7 +7,9 @@ from app.models import User
 from app.schemas import Token
 from app.core.security import (
     verify_password,
-    create_access_token
+    create_access_token,
+    create_refresh_token,
+    save_refresh_session
 )
 
 
@@ -55,8 +57,14 @@ def login(
             }
         )
 
-    access_token = create_access_token(
-        str(user.id)
+    access_token = create_access_token(str(user.id))
+
+    refresh_token = create_refresh_token(str(user.id))
+
+    save_refresh_session(
+        db=db,
+        user_id=user.id,
+        refresh_token=refresh_token
     )
 
     return Token(
