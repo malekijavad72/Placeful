@@ -220,6 +220,11 @@ async function handleSignIn(event) {
             data.access_token
         );
 
+        localStorage.setItem(
+            "refresh_token",
+            data.refresh_token
+        );
+
 
         // Save the login identifier locally.
         // This is only for displaying the UI.
@@ -266,13 +271,8 @@ async function handleSignIn(event) {
 
 function logout() {
 
-    localStorage.removeItem("access_token");
+    clearAuthenticationState();
 
-    localStorage.removeItem(
-        "logged_in_username"
-    );
-
-    updateAuthenticationUI();
 }
 
 
@@ -340,6 +340,60 @@ function getAccessToken() {
     );
 }
 
+// =====================================================
+// REFRESH ACCESS TOKEN
+// =====================================================
+
+async function refreshAccessToken() {
+
+    const refreshToken =
+        localStorage.getItem(
+            "refresh_token"
+        );
+
+    if (!refreshToken) {
+
+        throw new Error(
+            "No refresh token available."
+        );
+    }
+
+
+    const response = await fetch(
+        `${API_BASE_URL}/auth/refresh?refresh_token=${encodeURIComponent(refreshToken)}`,
+        {
+            method: "POST"
+        }
+    );
+
+
+    const data = await response.json();
+
+
+    if (!response.ok) {
+
+        throw new Error(
+            data.detail ||
+            "Unable to refresh access token."
+        );
+    }
+
+
+    localStorage.setItem(
+        "access_token",
+        data.access_token
+    );
+
+
+    localStorage.setItem(
+        "refresh_token",
+        data.refresh_token
+    );
+
+
+    return data.access_token;
+}
+
 
 // =====================================================
 // AUTHENTICATED REQUEST HELPER
@@ -366,8 +420,22 @@ async function authenticatedFetch(
 
     if (!token) {
 
-        throw new Error(
-            "You must be signed in."
+        const newAccessToken =
+            await refreshAccessToken();
+
+        const retryHeaders = {
+            ...(options.headers || {}),
+
+            "Authorization":
+                `Bearer ${newAccessToken}`
+        };
+
+        return fetch(
+            url,
+            {
+                ...options,
+                headers: retryHeaders
+            }
         );
     }
 
@@ -380,13 +448,40 @@ async function authenticatedFetch(
     };
 
 
-    return fetch(
+    let response = await fetch(
         url,
         {
             ...options,
             headers: headers
         }
     );
+
+
+    if (response.status === 401) {
+
+        const newAccessToken =
+            await refreshAccessToken();
+
+
+        const retryHeaders = {
+            ...(options.headers || {}),
+
+            "Authorization":
+                `Bearer ${newAccessToken}`
+        };
+
+
+        response = await fetch(
+            url,
+            {
+                ...options,
+                headers: retryHeaders
+            }
+        );
+    }
+
+
+    return response;
 }
 
 
@@ -435,3 +530,16 @@ document.addEventListener(
     "DOMContentLoaded",
     updateAuthenticationUI
 );
+
+function clearAuthenticationState() {
+
+    localStorage.removeItem(
+        "access_token"
+    );
+
+    localStorage.removeItem(
+        "logged_in_username"
+    );
+
+    updateAuthenticationUI();
+}

@@ -2,664 +2,210 @@
 <html lang="en">
 
 <head>
-
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Places Project</title>
-
-    <!-- Main CSS -->
-    <link
-        rel="stylesheet"
-        href="css/style.css"
-    >
-
-    <!-- OpenLayers CSS -->
-    <link
-        rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/ol@latest/ol.css"
-    >
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Placeful</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@latest/ol.css">
 </head>
-
 
 <body>
 
-    <!-- =====================================================
-         HEADER
-         ===================================================== -->
+  <header class="app-header">
+    <div class="header-brand">
+      <h1>Placeful</h1>
+      <p>Human experiences, mapped.</p>
+    </div>
 
-    <header>
+    <div class="auth-actions">
+      <button id="sign-in-btn" class="auth-btn" type="button">Sign In</button>
+      <button id="sign-up-btn" class="auth-btn auth-btn-primary" type="button">Sign Up</button>
 
-        <div class="header-brand">
+      <div id="user-menu" class="user-menu" style="display: none;">
+        <span id="logged-in-username"></span>
+        <button id="logout-btn" class="auth-btn" type="button">Log Out</button>
+      </div>
+    </div>
+  </header>
 
-            <h1>
-                Places Project
-            </h1>
+  <main>
 
-            <p>
-                Where places become memories.
-            </p>
+    <section id="experience-map" class="experience-map-section">
+      <div id="full-map-container">
+        <div id="full-map"></div>
 
+        <div id="experiences-error" class="experiences-error">
+          Unable to load experiences. Please try again.
         </div>
 
-
-        <!-- =================================================
-             AUTHENTICATION
-             ================================================= -->
-
-        <div class="auth-actions">
-
-            <!-- SIGN IN -->
-
-            <button
-                id="sign-in-btn"
-                class="auth-btn"
-                type="button"
-            >
-                Sign In
-            </button>
-
-
-            <!-- SIGN UP -->
-
-            <button
-                id="sign-up-btn"
-                class="auth-btn auth-btn-primary"
-                type="button"
-            >
-                Sign Up
-            </button>
-
-
-            <!-- LOGGED-IN USER -->
-
-            <div
-                id="user-menu"
-                class="user-menu"
-                style="display: none;"
-            >
-
-                <span id="logged-in-username">
-                </span>
-
-
-                <button
-                    id="logout-btn"
-                    class="auth-btn"
-                    type="button"
-                >
-                    Log Out
-                </button>
-
-            </div>
-
-        </div>
-
-    </header>
-
-
-    <!-- =====================================================
-         MAIN
-         ===================================================== -->
-
-    <main>
-
-
-        <!-- =================================================
-             EXPERIENCE MAP
-             ================================================= -->
-
-        <section
-            id="experience-map"
-            class="experience-map-section"
+        <button
+          id="add-experience-btn"
+          class="add-experience-btn"
+          type="button"
+          aria-label="Add an experience"
         >
+          <span class="add-experience-icon">+</span>
+          <span>Add experience</span>
+        </button>
 
-            <div class="section-header">
+        <div id="emotion-legend" class="emotion-legend">
+          <div class="legend-header">
+            <span class="legend-title">Explore by feeling</span>
+            <button id="legend-toggle" type="button" aria-label="Hide emotion filters">−</button>
+          </div>
 
-                <h2>
-                    Experience Map
-                </h2>
-
-                <p>
-                    Explore memories and experiences
-                    shared by people in different places.
-                </p>
-
-            </div>
-
-
-            <!-- =================================================
-                 MAP
-                 ================================================= -->
-
-            <div id="full-map-container">
-
-                <div id="full-map"></div>
-
-
-                <!-- EXPERIENCE LOAD ERROR -->
-
-                <div
-                    id="experiences-error"
-                    class="experiences-error"
-                >
-                    Unable to load experiences.
-                    Please try again.
-                </div>
-
-
-                <!-- =================================================
-                     ADD EXPERIENCE BUTTON
-                     ================================================= -->
-
-                <button
-                    id="add-experience-btn"
-                    class="add-experience-btn"
-                    type="button"
-                >
-                    + Add Experience
-                </button>
-
-
-                <!-- =================================================
-                     EMOTION LEGEND
-                     ================================================= -->
-
-                <div
-                    id="emotion-legend"
-                    class="emotion-legend"
-                >
-
-                    <div class="legend-header">
-
-                        <span>
-                            Filter by emotion
-                        </span>
-
-                        <button
-                            id="legend-toggle"
-                            type="button"
-                            aria-label="Hide emotion legend"
-                        >
-                            −
-                        </button>
-
-                    </div>
-
-
-                    <div
-                        id="legend-content"
-                        class="legend-content"
-                    >
-
-                        <button
-                            class="legend-item active"
-                            data-emotion="all"
-                            type="button"
-                        >
-                            <span class="legend-emoji">
-                                🌎
-                            </span>
-
-                            <span class="legend-label">
-                                All
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="legend-item"
-                            data-emotion="happy"
-                            type="button"
-                        >
-                            <span class="legend-emoji">
-                                😊
-                            </span>
-
-                            <span class="legend-label">
-                                Happy
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="legend-item"
-                            data-emotion="sad"
-                            type="button"
-                        >
-                            <span class="legend-emoji">
-                                😢
-                            </span>
-
-                            <span class="legend-label">
-                                Sad
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="legend-item"
-                            data-emotion="peaceful"
-                            type="button"
-                        >
-                            <span class="legend-emoji">
-                                😌
-                            </span>
-
-                            <span class="legend-label">
-                                Peaceful
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="legend-item"
-                            data-emotion="excited"
-                            type="button"
-                        >
-                            <span class="legend-emoji">
-                                🤩
-                            </span>
-
-                            <span class="legend-label">
-                                Excited
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="legend-item"
-                            data-emotion="nostalgic"
-                            type="button"
-                        >
-                            <span class="legend-emoji">
-                                🥹
-                            </span>
-
-                            <span class="legend-label">
-                                Nostalgic
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="legend-item"
-                            data-emotion="love"
-                            type="button"
-                        >
-                            <span class="legend-emoji">
-                                ❤️
-                            </span>
-
-                            <span class="legend-label">
-                                Love
-                            </span>
-                        </button>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- =====================================================
-             EXPERIENCE POPUP
-             ===================================================== -->
-
-        <div
-            id="popup"
-            class="popup"
-        >
-
-            <!-- CLOSE -->
-
-            <button
-                id="popup-close"
-                type="button"
-                aria-label="Close experience"
-                class="popup-close"
-            >
-                ×
+          <div id="legend-content" class="legend-content">
+            <button class="legend-item active" data-emotion="all" type="button">
+              <span class="legend-emoji">🌎</span>
+              <span class="legend-label">All</span>
             </button>
-
-
-            <!-- =================================================
-                 EXPERIENCE CONTENT
-                 ================================================= -->
-
-            <div class="popup-experience">
-
-                <h2 id="popup-title">
-                    Experience
-                </h2>
-
-
-                <p id="popup-story">
-                    Story
-                </p>
-
-
-                <!-- =================================================
-                     LIKE
-                     ================================================= -->
-
-                <div class="popup-like-container">
-
-                    <button
-                        id="popup-like-btn"
-                        class="popup-like-btn"
-                        type="button"
-                    >
-
-                        <span
-                            id="popup-like-icon"
-                            class="popup-like-icon"
-                        >
-                            ♡
-                        </span>
-
-
-                        <span
-                            id="popup-like-text"
-                            class="popup-like-text"
-                        >
-                            Like
-                        </span>
-
-
-                        <span
-                            id="popup-like-count"
-                            class="popup-like-count"
-                        >
-                            0
-                        </span>
-
-                    </button>
-
-
-                    <span
-                        id="popup-like-message"
-                        class="popup-like-message"
-                    ></span>
-
-                </div>
-
-            </div>
-
-
-            <!-- =====================================================
-                 COMMENTS
-                 ===================================================== -->
-
-            <div
-                id="comments-section"
-                class="comments-section"
-            >
-
-                <!-- COMMENTS HEADER -->
-
-                <div class="comments-header">
-
-                    <h3>
-                        Comments
-                    </h3>
-
-
-                    <span
-                        id="comments-count"
-                        class="comments-count"
-                    >
-                        0
-                    </span>
-
-                </div>
-
-
-                <!-- =================================================
-                     ADD COMMENT
-                     ================================================= -->
-
-                <div
-                    id="comment-form-container"
-                    class="comment-form-container"
-                >
-
-                    <textarea
-                        id="comment-input"
-                        class="comment-input"
-                        rows="2"
-                        maxlength="5000"
-                        placeholder="Share your thoughts..."
-                    ></textarea>
-
-
-                    <div class="comment-form-actions">
-
-                        <span
-                            id="comment-login-message"
-                            class="comment-login-message"
-                        ></span>
-
-
-                        <button
-                            id="submit-comment-btn"
-                            type="button"
-                            class="submit-comment-btn"
-                        >
-                            Comment
-                        </button>
-
-                    </div>
-
-                </div>
-
-
-                <!-- =================================================
-                     COMMENTS LIST
-                     ================================================= -->
-
-                <div
-                    id="comments-list"
-                    class="comments-list"
-                >
-
-                    <div
-                        id="comments-loading"
-                        class="comments-message"
-                    >
-                        Loading comments...
-                    </div>
-
-                </div>
-
-            </div>
-
+            <button class="legend-item" data-emotion="happy" type="button">
+              <span class="legend-emoji">😊</span>
+              <span class="legend-label">Happy</span>
+            </button>
+            <button class="legend-item" data-emotion="sad" type="button">
+              <span class="legend-emoji">😢</span>
+              <span class="legend-label">Sad</span>
+            </button>
+            <button class="legend-item" data-emotion="peaceful" type="button">
+              <span class="legend-emoji">😌</span>
+              <span class="legend-label">Peaceful</span>
+            </button>
+            <button class="legend-item" data-emotion="excited" type="button">
+              <span class="legend-emoji">🤩</span>
+              <span class="legend-label">Excited</span>
+            </button>
+            <button class="legend-item" data-emotion="nostalgic" type="button">
+              <span class="legend-emoji">🥹</span>
+              <span class="legend-label">Nostalgic</span>
+            </button>
+            <button class="legend-item" data-emotion="love" type="button">
+              <span class="legend-emoji">❤️</span>
+              <span class="legend-label">Love</span>
+            </button>
+          </div>
         </div>
-
-
-        <!-- =====================================================
-             ADD EXPERIENCE FORM
-             ===================================================== -->
-
-        <div
-            id="experience-form-overlay"
-            class="experience-form-overlay"
-        >
-
-            <div class="experience-form">
-
-                <button
-                    id="close-experience-form"
-                    class="close-form-btn"
-                    type="button"
-                    aria-label="Close form"
-                >
-                    ×
-                </button>
-
-
-                <h2>
-                    Add Experience
-                </h2>
-
-
-                <p class="form-description">
-                    Share your experience from a place.
-                </p>
-
-
-                <form id="experience-form">
-
-                    <!-- TITLE -->
-
-                    <div class="form-group">
-
-                        <label for="experience-title">
-                            Title
-                        </label>
-
-
-                        <input
-                            type="text"
-                            id="experience-title"
-                            name="title"
-                            placeholder="e.g. A memorable afternoon"
-                            required
-                        >
-
-                    </div>
-
-
-                    <!-- STORY -->
-
-                    <div class="form-group">
-
-                        <label for="experience-description">
-                            Story
-                        </label>
-
-
-                        <textarea
-                            id="experience-description"
-                            name="description"
-                            rows="5"
-                            placeholder="What happened at this place?"
-                            required
-                        ></textarea>
-
-                    </div>
-
-
-                    <!-- EMOTION -->
-
-                    <div class="form-group">
-
-                        <label for="experience-emotion">
-                            Emotion
-                        </label>
-
-
-                        <select
-                            id="experience-emotion"
-                            name="emotion"
-                            required
-                        >
-
-                            <option value="">
-                                Select an emotion
-                            </option>
-
-                            <option value="happy">
-                                😊 Happy
-                            </option>
-
-                            <option value="sad">
-                                😢 Sad
-                            </option>
-
-                            <option value="peaceful">
-                                😌 Peaceful
-                            </option>
-
-                            <option value="excited">
-                                🤩 Excited
-                            </option>
-
-                            <option value="nostalgic">
-                                🥹 Nostalgic
-                            </option>
-
-                            <option value="love">
-                                ❤️ Love
-                            </option>
-
-                        </select>
-
-                    </div>
-
-
-                    <!-- FORM ACTIONS -->
-
-                    <div class="form-actions">
-
-                        <button
-                            type="button"
-                            id="cancel-experience"
-                            class="cancel-btn"
-                        >
-                            Cancel
-                        </button>
-
-
-                        <button
-                            type="submit"
-                            class="submit-experience-btn"
-                        >
-                            Save Experience
-                        </button>
-
-                    </div>
-
-                </form>
-
-            </div>
-
-        </div>
-
-    </main>
-
+      </div>
+    </section>
 
     <!-- =====================================================
-         JAVASCRIPT
+         EXPERIENCE SIDEBAR (replaces popup)
          ===================================================== -->
+    <aside id="experience-sidebar" class="experience-sidebar" aria-hidden="true">
+      <div class="sidebar-header">
+        <span class="sidebar-header-label">Experience</span>
+        <button id="sidebar-close" type="button" class="sidebar-close" aria-label="Close experience">×</button>
+      </div>
 
-    <script
-        src="https://cdn.jsdelivr.net/npm/ol@latest/dist/ol.js"
-    ></script>
+      <div class="sidebar-body">
+        <div class="sidebar-experience">
+          <div id="sidebar-emotion" class="sidebar-emotion" hidden></div>
+          <h2 id="sidebar-title">Experience</h2>
+          <p id="sidebar-story">Story</p>
 
+          <div class="sidebar-like-container">
+            <button id="sidebar-like-btn" class="sidebar-like-btn" type="button">
+              <span id="sidebar-like-icon" class="sidebar-like-icon">♡</span>
+              <span id="sidebar-like-text" class="sidebar-like-text">Like</span>
+              <span id="sidebar-like-count" class="sidebar-like-count">0</span>
+            </button>
+            <span id="sidebar-like-message" class="sidebar-like-message"></span>
+          </div>
+        </div>
 
-    <!--
-        map.js first because it initializes the map.
-    -->
+        <div id="comments-section" class="comments-section">
+          <div class="comments-header">
+            <h3>Comments</h3>
+            <span id="comments-count" class="comments-count">0</span>
+          </div>
 
-    <script src="js/map.js"></script>
+          <div id="comment-form-container" class="comment-form-container">
+            <textarea
+              id="comment-input"
+              class="comment-input"
+              rows="2"
+              maxlength="5000"
+              placeholder="Share your thoughts..."
+            ></textarea>
 
+            <div class="comment-form-actions">
+              <span id="comment-login-message" class="comment-login-message"></span>
+              <button id="submit-comment-btn" type="button" class="submit-comment-btn">
+                Comment
+              </button>
+            </div>
+          </div>
 
-    <!--
-        auth.js handles authentication.
-    -->
+          <div id="comments-list" class="comments-list">
+            <div id="comments-loading" class="comments-message">
+              Loading comments...
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
 
-    <script src="js/auth.js"></script>
+    <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
 
+    <!-- =====================================================
+         ADD EXPERIENCE FORM
+         ===================================================== -->
+    <div id="experience-form-overlay" class="experience-form-overlay">
+      <div class="experience-form">
+        <button id="close-experience-form" class="close-form-btn" type="button" aria-label="Close form">×</button>
+
+        <h2>Add Experience</h2>
+        <p class="form-description">Share your experience from a place.</p>
+
+        <form id="experience-form">
+          <div class="form-group">
+            <label for="experience-title">Title</label>
+            <input
+              type="text"
+              id="experience-title"
+              name="title"
+              placeholder="e.g. A memorable afternoon"
+              required
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="experience-description">Story</label>
+            <textarea
+              id="experience-description"
+              name="description"
+              rows="5"
+              placeholder="What happened at this place?"
+              required
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="experience-emotion">Emotion</label>
+            <select id="experience-emotion" name="emotion" required>
+              <option value="">Select an emotion</option>
+              <option value="happy">😊 Happy</option>
+              <option value="sad">😢 Sad</option>
+              <option value="peaceful">😌 Peaceful</option>
+              <option value="excited">🤩 Excited</option>
+              <option value="nostalgic">🥹 Nostalgic</option>
+              <option value="love">❤️ Love</option>
+            </select>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="cancel-experience" class="cancel-btn">Cancel</button>
+            <button type="submit" class="submit-experience-btn">Save Experience</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/ol@latest/dist/ol.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/auth.js"></script>
 
 </body>
-
 </html>
