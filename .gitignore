@@ -87,3 +87,5 @@ htmlcov/
 ~$*.xlsm
 
 backend/create_test_user.py
+
+backend/uploads/

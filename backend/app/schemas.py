@@ -2,7 +2,7 @@ import uuid
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 # ============================================================
@@ -68,10 +68,25 @@ class TokenData(BaseModel):
 
 
 class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
+    username: str = Field(min_length=3, max_length=50)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
 
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        import re
+
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters")
+
+        if not re.search(r"[A-Za-z]", value):
+            raise ValueError("Password must contain at least one letter")
+
+        if not re.search(r"[0-9]", value):
+            raise ValueError("Password must contain at least one number")
+
+        return value
 
 class UserProfileUpdate(BaseModel):
     display_name: str | None = None

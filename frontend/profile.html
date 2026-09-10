@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — Placeful</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/profile.css">
+</head>
+<body class="profile-page">
+
+  <header class="app-header">
+    <div class="header-brand">
+      <a href="index.html" class="brand-link">
+        <h1>Placeful</h1>
+        <p>Human experiences, mapped.</p>
+      </a>
+    </div>
+
+    <div class="auth-actions">
+      <a href="index.html" class="auth-btn">← Map</a>
+      <button id="sign-in-btn" class="auth-btn" type="button">Sign In</button>
+      <button id="sign-up-btn" class="auth-btn auth-btn-primary" type="button">Sign Up</button>
+      <div id="user-menu" class="user-menu" style="display: none;">
+        <a href="profile.html" class="auth-btn" id="my-profile-link">My profile</a>
+        <span id="logged-in-username"></span>
+        <button id="logout-btn" class="auth-btn" type="button">Log Out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="profile-main">
+    <div class="profile-card">
+      <div id="profile-loading" class="profile-state">Loading profile…</div>
+      <div id="profile-error" class="profile-state profile-error" hidden>Could not load this profile.</div>
+
+      <div id="profile-content" hidden>
+        <div class="profile-top">
+          <div id="profile-avatar" class="profile-avatar">P</div>
+          <div class="profile-identity">
+            <h1 id="profile-display-name">User</h1>
+            <p id="profile-username" class="profile-username">@user</p>
+          </div>
+        </div>
+
+        <p id="profile-bio" class="profile-bio"></p>
+        <p id="profile-email" class="profile-email" hidden></p>
+
+        <div class="profile-actions" id="profile-actions">
+          <button id="profile-edit-btn" class="auth-btn auth-btn-primary" type="button" hidden>
+            Edit profile
+          </button>
+        </div>
+
+        <!-- Edit form (own profile only) -->
+        <form id="profile-edit-form" class="profile-edit-form" hidden>
+          <h2>Edit profile</h2>
+
+          <div class="form-group">
+            <label for="edit-display-name">Display name</label>
+            <input type="text" id="edit-display-name" maxlength="80" placeholder="How you appear to others">
+          </div>
+
+          <div class="form-group">
+            <label for="edit-bio">Bio</label>
+            <textarea id="edit-bio" rows="4" maxlength="500" placeholder="A short note about you"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-profile-image">Profile image URL</label>
+            <input type="url" id="edit-profile-image" placeholder="https://…">
+          </div>
+
+          <p id="profile-edit-status" class="form-status" role="alert"></p>
+
+          <div class="form-actions">
+            <button type="button" id="profile-edit-cancel" class="cancel-btn">Cancel</button>
+            <button type="submit" id="profile-edit-save" class="submit-experience-btn">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/auth.js"></script>
+  <script src="js/profile.js"></script>
+</body>
+</html>

@@ -2,18 +2,19 @@ import json
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session
 from geoalchemy2 import WKTElement
 from datetime import datetime, timezone
 from pathlib import Path
-
+from typing import Optional
 from app.database import get_db 
 from app.models import (
     Experience,
     Emotion,
     ExperienceEmotion,
     User,
+    UserFollow,
     Like,
     Comment,
     ExperienceMedia
@@ -35,7 +36,7 @@ from app.core.exceptions import (
 
 from app.services.experience_service import create_experience as create_experience_service
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_optional_current_user
 
 
 router = APIRouter(
@@ -73,7 +74,8 @@ UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
 def get_experiences(
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db)  # Added dependency
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
 ):
 
     experiences = (
@@ -81,13 +83,19 @@ def get_experiences(
             Experience.id,
             Experience.title,
             Experience.story,
+            Experience.user_id,
             func.ST_AsGeoJSON(
                 Experience.location
             ).label("location"),
             Experience.visibility,
             Experience.is_anonymous,
             Emotion.name.label("emotion_name"),
-            Emotion.slug.label("emotion_slug")
+            Emotion.slug.label("emotion_slug"),
+            User.username.label("username"),
+            User.display_name.label("display_name"),
+            User.profile_image_url.label("profile_image_url"),
+            Experience.created_at,
+            Experience.updated_at,
         )
         .outerjoin(
             ExperienceEmotion,
@@ -99,6 +107,38 @@ def get_experiences(
             ExperienceEmotion.emotion_id ==
             Emotion.id
         )
+                .outerjoin(
+            User,
+            Experience.user_id == User.id
+        )
+    )
+
+    # Visibility rules:
+    # public    → everyone
+    # private   → only the creator
+    # followers → creator + people who follow the creator
+    if current_user is None:
+        experiences = experiences.filter(
+            Experience.visibility == "public"
+        )
+    else:
+        followed_ids = (
+            db.query(UserFollow.following_id)
+            .filter(UserFollow.follower_id == current_user.id)
+        )
+        experiences = experiences.filter(
+            or_(
+                Experience.visibility == "public",
+                Experience.user_id == current_user.id,
+                and_(
+                    Experience.visibility == "followers",
+                    Experience.user_id.in_(followed_ids),
+                ),
+            )
+        )
+
+    experiences = (
+        experiences
         .offset(offset)
         .limit(limit)
         .all()
@@ -123,6 +163,34 @@ def get_experiences(
                 "emotion_name": experience.emotion_name,
                 "visibility": experience.visibility,
                 "is_anonymous": experience.is_anonymous,
+                "user_id": (
+                    None
+                    if experience.is_anonymous
+                    else (str(experience.user_id) if experience.user_id else None)
+                ),
+                "username": (
+                    None
+                    if experience.is_anonymous
+                    else experience.username
+                ),
+                "display_name": (
+                    None
+                    if experience.is_anonymous
+                    else experience.display_name
+                ),
+                "profile_image_url": (
+                    None
+                    if experience.is_anonymous
+                    else experience.profile_image_url
+                ),
+                "created_at": (
+                    experience.created_at.isoformat()
+                    if experience.created_at else None
+                ),
+                "updated_at": (
+                    experience.updated_at.isoformat()
+                    if experience.updated_at else None
+                ),
             }
         }
 
@@ -169,6 +237,7 @@ def get_nearby_experiences(
             Experience.id,
             Experience.title,
             Experience.story,
+            Experience.user_id,
             func.ST_AsGeoJSON(
                 Experience.location
             ).label("location"),
@@ -176,7 +245,12 @@ def get_nearby_experiences(
             Experience.is_anonymous,
             distance.label("distance"),
             Emotion.name.label("emotion_name"),
-            Emotion.slug.label("emotion_slug")
+            Emotion.slug.label("emotion_slug"),
+            User.username.label("username"),
+            User.display_name.label("display_name"),
+            User.profile_image_url.label("profile_image_url"),
+            Experience.created_at,
+            Experience.updated_at,
         )
         .outerjoin(
             ExperienceEmotion,
@@ -187,6 +261,10 @@ def get_nearby_experiences(
             Emotion,
             ExperienceEmotion.emotion_id ==
             Emotion.id
+        )
+        .outerjoin(
+            User,
+            Experience.user_id == User.id
         )
         .filter(
             func.ST_DWithin(
@@ -218,6 +296,34 @@ def get_nearby_experiences(
                 "emotion_name": experience.emotion_name,
                 "visibility": experience.visibility,
                 "is_anonymous": experience.is_anonymous,
+                "user_id": (
+                    None
+                    if experience.is_anonymous
+                    else (str(experience.user_id) if experience.user_id else None)
+                ),
+                "username": (
+                    None
+                    if experience.is_anonymous
+                    else experience.username
+                ),
+                "display_name": (
+                    None
+                    if experience.is_anonymous
+                    else experience.display_name
+                ),
+                "profile_image_url": (
+                    None
+                    if experience.is_anonymous
+                    else experience.profile_image_url
+                ),
+                "created_at": (
+                    experience.created_at.isoformat()
+                    if experience.created_at else None
+                ),
+                "updated_at": (
+                    experience.updated_at.isoformat()
+                    if experience.updated_at else None
+                ),
                 "distance_meters": round(
                     float(experience.distance),
                     2

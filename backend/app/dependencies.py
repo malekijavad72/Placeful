@@ -67,3 +67,40 @@ def get_current_user(
 
 
     return user
+
+
+# ============================================================
+# OPTIONAL CURRENT USER (no 401 if not logged in)
+# ============================================================
+
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl="/api/auth/login",
+    auto_error=False
+)
+
+
+def get_optional_current_user(
+    token: str | None = Depends(oauth2_scheme_optional),
+    db: Session = Depends(get_db)
+):
+    if not token:
+        return None
+
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+    except jwt.InvalidTokenError:
+        return None
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+    return user
