@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 # ============================================================
 
 class ExperienceCreate(BaseModel):
+    place_id: uuid.UUID | None = None
     title: str
     story: str
     emotion: str
@@ -18,6 +19,57 @@ class ExperienceCreate(BaseModel):
     visibility: str = "public"
     is_anonymous: bool = False
 
+# ============================================================
+# PLACE
+# ============================================================
+
+class PlaceCreate(BaseModel):
+
+    name: str
+    description: str | None = None
+    category: str | None = None
+    latitude: float
+    longitude: float
+    address: str | None = None
+    city: str | None = None
+    country: str | None = None
+    osm_type: str | None = None
+    osm_id: str | None = None
+
+class PlaceResponse(BaseModel):
+
+    id: uuid.UUID
+    name: str | None
+    description: str | None
+    category: str | None
+    latitude: float | None
+    longitude: float | None
+    address: str | None
+    city: str | None
+    country: str | None
+    osm_type: str | None
+    osm_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+class PlaceCandidate(BaseModel):
+
+    name: str | None
+    category: str | None
+    address: str | None
+    city: str | None
+    country: str | None
+    latitude: float
+    longitude: float
+    distance: float
+    osm_type: str | None
+    osm_id: str | None
+    display_name: str | None
+
+
+class PlaceIdentificationResponse(BaseModel):
+
+    candidates: list[PlaceCandidate]
 
 # ============================================================
 # GEOJSON

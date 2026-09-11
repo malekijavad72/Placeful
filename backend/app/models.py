@@ -34,6 +34,85 @@ class Base(DeclarativeBase):
     pass
 
 
+class Place(Base):
+
+    __tablename__ = "places"
+
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()")
+    )
+
+
+    name: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+    osm_type: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+    osm_id: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+
+    category: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+
+    location: Mapped[object | None] = mapped_column(
+        Geometry(
+            geometry_type="POINT",
+            srid=4326
+        ),
+        nullable=True
+    )
+
+
+    address: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+
+    city: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+
+    country: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()")
+    )
+
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()")
+    )
+
 # ============================================================
 # EXPERIENCE
 # ============================================================
@@ -60,12 +139,20 @@ class Experience(Base):
 
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE"
+        ),
         nullable=True
     )
 
 
     place_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey(
+            "places.id",
+            ondelete="SET NULL"
+        ),
         nullable=True
     )
 
@@ -181,14 +268,20 @@ class ExperienceEmotion(Base):
 
     experience_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("experiences.id"),
+        ForeignKey(
+            "experiences.id",
+            ondelete="CASCADE"
+        ),
         primary_key=True
     )
 
 
     emotion_id: Mapped[int] = mapped_column(
         SmallInteger,
-        ForeignKey("emotions.id"),
+        ForeignKey(
+            "emotions.id",
+            ondelete="RESTRICT"
+        ),
         primary_key=True
     )
 
@@ -228,14 +321,20 @@ class Comment(Base):
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id"),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE"
+        ),
         nullable=False
     )
 
 
     experience_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("experiences.id"),
+        ForeignKey(
+            "experiences.id",
+            ondelete="CASCADE"
+        ),
         nullable=False
     )
 
@@ -329,6 +428,7 @@ class User(Base):
         String,
         nullable=True
     )
+    
 
     bio: Mapped[str | None] = mapped_column(
         Text,
@@ -379,15 +479,18 @@ class UserFollow(Base):
     )
 
 class ExperienceMedia(Base):
+
     __tablename__ = "experience_media"
 
-    id = mapped_column(
+
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         server_default=text("gen_random_uuid()")
     )
 
-    experience_id = mapped_column(
+
+    experience_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey(
             "experiences.id",
@@ -396,44 +499,50 @@ class ExperienceMedia(Base):
         nullable=False
     )
 
-    user_id = mapped_column(
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),
         nullable=False
     )
 
-    storage_key = mapped_column(
+
+    storage_key: Mapped[str] = mapped_column(
         Text,
         nullable=False
     )
 
-    media_type = mapped_column(
+
+    media_type: Mapped[str] = mapped_column(
         String,
         nullable=False,
-        default="image"
+        server_default=text("'image'")
     )
 
-    mime_type = mapped_column(
+
+    mime_type: Mapped[str] = mapped_column(
         String,
         nullable=False
     )
 
-    original_filename = mapped_column(
+
+    original_filename: Mapped[str] = mapped_column(
         Text,
         nullable=False
     )
 
-    file_size = mapped_column(
+
+    file_size: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False
     )
 
-    created_at = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False
-    )
 
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()")
+    )
 # ============================================================
 # REFRESH SESSION
 # ============================================================

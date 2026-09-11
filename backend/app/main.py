@@ -10,6 +10,8 @@ from app.routers import auth
 
 from app.routers import users
 
+from app.routers import places
+
 app = FastAPI()
 
 
@@ -59,3 +61,4 @@ app.include_router(experiences.router)
 app.include_router(auth_test.router)
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(places.router)

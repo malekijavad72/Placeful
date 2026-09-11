@@ -4,7 +4,8 @@ from geoalchemy2 import WKTElement
 from app.models import (
     Experience,
     Emotion,
-    ExperienceEmotion
+    ExperienceEmotion,
+    Place
 )
 
 from app.schemas import ExperienceCreate
@@ -37,10 +38,31 @@ def create_experience(
             raise bad_request(
                 f"Emotion '{experience.emotion}' does not exist."
             )
+        # ----------------------------------------------------
+        # Validate Place
+        # ----------------------------------------------------
 
+        place = None
+
+        if experience.place_id is not None:
+
+            place = (
+                db.query(Place)
+                .filter(
+                    Place.id == experience.place_id
+                )
+                .first()
+            )
+
+            if place is None:
+
+                raise bad_request(
+                    "Place not found."
+                )
         # Create the experience
         new_experience = Experience(
             user_id=user_id,
+            place_id=experience.place_id,
             title=experience.title,
             story=experience.story,
             location=WKTElement(
@@ -75,12 +97,13 @@ def create_experience(
         return {
             "message": "Experience created successfully",
             "id": str(new_experience.id),
+            "place_id": new_experience.place_id,
             "title": new_experience.title,
             "emotion": emotion.slug
         }
 
-    except Exception:
+    except Exception as e:
 
         db.rollback()
-
+        print("CREATE EXPERIENCE ERROR:", repr(e))
         raise internal_server_error()

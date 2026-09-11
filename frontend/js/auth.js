@@ -61,10 +61,29 @@ function createSignInModal() {
     openSignUpModal();
   });
 
+  let signInPointerStartedInside = false;
+
+  modal.addEventListener("pointerdown", function (event) {
+    const modalContent = modal.querySelector(".auth-modal");
+
+    signInPointerStartedInside =
+      modalContent && modalContent.contains(event.target);
+  });
+
   modal.addEventListener("click", function (event) {
-    if (event.target === modal) {
+    const shouldClose =
+      event.target === modal &&
+      !signInPointerStartedInside;
+
+    signInPointerStartedInside = false;
+
+    if (shouldClose) {
       closeSignInModal();
     }
+  });
+
+  modal.addEventListener("pointercancel", function () {
+    signInPointerStartedInside = false;
   });
 }
 
@@ -197,10 +216,29 @@ function createSignUpModal() {
     openSignInModal();
   });
 
+  let signUpPointerStartedInside = false;
+
+  modal.addEventListener("pointerdown", function (event) {
+    const modalContent = modal.querySelector(".auth-modal");
+
+    signUpPointerStartedInside =
+      modalContent && modalContent.contains(event.target);
+  });
+
   modal.addEventListener("click", function (event) {
-    if (event.target === modal) {
+    const shouldClose =
+      event.target === modal &&
+      !signUpPointerStartedInside;
+
+    signUpPointerStartedInside = false;
+
+    if (shouldClose) {
       closeSignUpModal();
     }
+  });
+
+  modal.addEventListener("pointercancel", function () {
+    signUpPointerStartedInside = false;
   });
 }
 
