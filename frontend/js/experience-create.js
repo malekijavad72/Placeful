@@ -2247,7 +2247,7 @@ async function createOrReusePlace(
 
 
     const response =
-        await fetch(
+        await authenticatedFetch(
             API_BASE_URL +
             "/places/",
             {

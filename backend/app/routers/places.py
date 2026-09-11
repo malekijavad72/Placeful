@@ -8,13 +8,14 @@ import httpx
 import math
 
 from app.database import get_db
-from app.models import Place
+from app.models import Place, User
 from app.schemas import (
     PlaceCreate,
     PlaceResponse,
     PlaceCandidate,
     PlaceIdentificationResponse
 )
+from app.dependencies import get_current_user
 
 
 # ============================================================
@@ -1930,18 +1931,10 @@ def get_place(
 )
 def create_place(
     place: PlaceCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
 
-    print(
-        "OSM TYPE:",
-        place.osm_type
-    )
-
-    print(
-        "OSM ID:",
-        place.osm_id
-    )
 
     # --------------------------------------------------------
     # Validate coordinates

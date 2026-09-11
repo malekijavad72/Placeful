@@ -17,7 +17,8 @@ from app.models import (
     UserFollow,
     Like,
     Comment,
-    ExperienceMedia
+    ExperienceMedia,
+    Place
 )
 from app.schemas import (
     ExperienceCreate,
@@ -96,20 +97,28 @@ def get_experiences(
             User.profile_image_url.label("profile_image_url"),
             Experience.created_at,
             Experience.updated_at,
+            Experience.place_id,
+            Place.name.label("place_name"),
+            Place.category.label("place_category"),
+            Place.address.label("place_address"),
+            Place.city.label("place_city"),
+            Place.country.label("place_country"),
         )
         .outerjoin(
             ExperienceEmotion,
-            Experience.id ==
-            ExperienceEmotion.experience_id
+            Experience.id == ExperienceEmotion.experience_id,
         )
         .outerjoin(
             Emotion,
-            ExperienceEmotion.emotion_id ==
-            Emotion.id
+            ExperienceEmotion.emotion_id == Emotion.id,
         )
-                .outerjoin(
+        .outerjoin(
             User,
-            Experience.user_id == User.id
+            Experience.user_id == User.id,
+        )
+        .outerjoin(
+            Place,
+            Experience.place_id == Place.id,
         )
     )
 
@@ -191,6 +200,15 @@ def get_experiences(
                     experience.updated_at.isoformat()
                     if experience.updated_at else None
                 ),
+                "place_id": (
+                    str(experience.place_id)
+                    if experience.place_id else None
+                ),
+                "place_name": experience.place_name,
+                "place_category": experience.place_category,
+                "place_address": experience.place_address,
+                "place_city": experience.place_city,
+                "place_country": experience.place_country,
             }
         }
 
