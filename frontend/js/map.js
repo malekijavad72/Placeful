@@ -47,21 +47,128 @@ let currentCommentsExperienceId = null;
 let currentComments = [];
 
 // API_BASE_URL / auth helpers: defined in auth.js (load auth.js first)
+
+// Master client-side experience source.
+// Keep this source because experience-sidebar.js depends on it.
 const vectorSource = new ol.source.Vector();
 
+// Filtered source used by the visualization layers.
+const filteredSource = new ol.source.Vector();
+
+// ----------------------------------------------------------
+// MAP VISUALIZATION THRESHOLDS
+// ----------------------------------------------------------
+
+const HEATMAP_MAX_ZOOM = 9;
+const CLUSTER_MAX_ZOOM = 13;
+
+// ----------------------------------------------------------
+// INDIVIDUAL EXPERIENCE LAYER
+// ----------------------------------------------------------
+
 const vectorLayer = new ol.layer.Vector({
-  source: vectorSource,
-  style: function (feature) {
-    const emotion = feature.get("emotion");
-
-    if (activeEmotionFilter !== "all" && emotion !== activeEmotionFilter) {
-      return null;
-    }
-
-    return getExperienceStyle(feature);
-  }
+  source: filteredSource,
+  style: getExperienceStyle,
+  zIndex: 30
 });
 
+// ----------------------------------------------------------
+// CLUSTER LAYER
+// ----------------------------------------------------------
+
+const clusterSource = new ol.source.Cluster({
+  distance: 45,
+  minDistance: 20,
+  source: filteredSource
+});
+
+const clusterStyleCache = {};
+
+const clusterLayer = new ol.layer.Vector({
+  source: clusterSource,
+
+  style: function (feature) {
+    const features = feature.get("features") || [];
+    const size = features.length;
+
+    if (size === 1) {
+      return getExperienceStyle(features[0]);
+    }
+
+    let style = clusterStyleCache[size];
+
+    if (!style) {
+      const radius = Math.min(
+        24,
+        10 + Math.log(size) * 5
+      );
+
+      style = new ol.style.Style({
+        image: new ol.style.Circle({
+          radius: radius,
+
+          fill: new ol.style.Fill({
+            color: "rgba(196, 92, 62, 0.90)"
+          }),
+
+          stroke: new ol.style.Stroke({
+            color: "rgba(255, 255, 255, 0.95)",
+            width: 2
+          })
+        }),
+
+        text: new ol.style.Text({
+          text: String(size),
+
+          font: "600 12px Arial",
+
+          fill: new ol.style.Fill({
+            color: "#ffffff"
+          }),
+
+          stroke: new ol.style.Stroke({
+            color: "rgba(0, 0, 0, 0.15)",
+            width: 2
+          })
+        })
+      });
+
+      clusterStyleCache[size] = style;
+    }
+
+    return style;
+  },
+
+  zIndex: 20
+});
+
+// ----------------------------------------------------------
+// HEATMAP LAYER
+// ----------------------------------------------------------
+
+const heatmapLayer = new ol.layer.Heatmap({
+  source: filteredSource,
+
+  blur: 28,
+  radius: 18,
+
+  weight: function () {
+    return 1;
+  },
+
+  gradient: [
+    "rgba(196, 92, 62, 0)",
+    "rgba(196, 92, 62, 0.20)",
+    "rgba(196, 92, 62, 0.42)",
+    "rgba(196, 92, 62, 0.68)",
+    "rgba(168, 75, 50, 0.90)"
+  ],
+
+  zIndex: 10
+});
+
+map.addLayer(heatmapLayer);
+map.addLayer(clusterLayer);
 map.addLayer(vectorLayer);
 
 // ----------------------------------------------------------
@@ -123,26 +230,29 @@ const experienceForm = document.getElementById("experience-form");
 // ----------------------------------------------------------
 
 function getExperienceStyle(feature) {
-  const emotion = feature.get("emotion");
-  let emoji = "📍";
-
-  if (emotion && emotionConfig[emotion]) {
-    emoji = emotionConfig[emotion].emoji;
-  }
-
   const isHovered = feature === hoveredExperience;
-  const isSelected = feature.get("id") === currentPopupExperienceId;
-  const fontSize = isHovered || isSelected ? 32 : 24;
+  const isSelected =
+    feature.get("id") === currentPopupExperienceId;
+
+  const radius = isSelected
+    ? 9
+    : isHovered
+      ? 8
+      : 6;
 
   return new ol.style.Style({
-    text: new ol.style.Text({
-      text: emoji,
-      font: fontSize + "px Arial",
-      textAlign: "center",
-      textBaseline: "middle",
+    image: new ol.style.Circle({
+      radius: radius,
+
+      fill: new ol.style.Fill({
+        color: isSelected
+          ? "#c45c3e"
+          : "#ffffff"
+      }),
+
       stroke: new ol.style.Stroke({
-        color: "rgba(255,255,255,0.9)",
-        width: isHovered || isSelected ? 4 : 2
+        color: "#c45c3e",
+        width: isSelected || isHovered ? 3 : 2
       })
     })
   });
@@ -158,6 +268,28 @@ function updateAddExperienceButton() {
   if (!btn) return;
   // Only signed-in users can create experiences
   btn.style.display = isLoggedIn() ? "" : "none";
+}
+
+function updateFilteredSource() {
+  filteredSource.clear();
+
+  const features = vectorSource.getFeatures();
+
+  const filteredFeatures = features.filter(function (feature) {
+    if (activeEmotionFilter === "all") {
+      return true;
+    }
+
+    return feature.get("emotion") === activeEmotionFilter;
+  });
+
+  filteredSource.addFeatures(filteredFeatures);
+
+  clusterSource.refresh();
+
+  heatmapLayer.changed();
+  clusterLayer.changed();
+  vectorLayer.changed();
 }
 
 async function loadExperiences() {
@@ -183,7 +315,7 @@ async function loadExperiences() {
 
     vectorSource.clear();
     vectorSource.addFeatures(features);
-    vectorLayer.changed();
+    updateFilteredSource();
   } catch (error) {
     console.error("Failed to load experiences:", error);
     if (experiencesError) {
@@ -191,6 +323,32 @@ async function loadExperiences() {
     }
   }
 }
+
+function updateMapVisualization() {
+  const zoom = map.getView().getZoom();
+
+  if (zoom <= HEATMAP_MAX_ZOOM) {
+    heatmapLayer.setVisible(true);
+    clusterLayer.setVisible(false);
+    vectorLayer.setVisible(false);
+    return;
+  }
+
+  if (zoom <= CLUSTER_MAX_ZOOM) {
+    heatmapLayer.setVisible(false);
+    clusterLayer.setVisible(true);
+    vectorLayer.setVisible(false);
+    return;
+  }
+
+  heatmapLayer.setVisible(false);
+  clusterLayer.setVisible(false);
+  vectorLayer.setVisible(true);
+}
+
+map.getView().on("change:resolution", updateMapVisualization);
+
+updateMapVisualization();
 
 loadExperiences();
 updateAddExperienceButton();
@@ -221,13 +379,26 @@ map.on("pointermove", function (event) {
     return;
   }
 
-  const feature = map.forEachFeatureAtPixel(event.pixel, function (f) {
-    return f;
-  });
+  const feature = map.forEachFeatureAtPixel(
+  event.pixel,
+  function (f, layer) {
+    if (layer === clusterLayer || layer === vectorLayer) {
+      return f;
+    }
+
+    return null;
+  }
+);
 
   map.getTargetElement().style.cursor = feature ? "pointer" : "";
 
   if (feature === hoveredExperience) {
+    return;
+  }
+
+  if (feature && clusterLayer.getVisible()) {
+    hoveredExperience = null;
+    map.getTargetElement().style.cursor = "pointer";
     return;
   }
 
@@ -241,11 +412,69 @@ map.on("singleclick", function (event) {
     return;
   }
 
-  const feature = map.forEachFeatureAtPixel(event.pixel, function (f) {
-    return f;
-  });
+  const feature = map.forEachFeatureAtPixel(
+  event.pixel,
+  function (f, layer) {
+    if (layer === clusterLayer || layer === vectorLayer) {
+      return f;
+    }
+
+    return null;
+  }
+);
 
   if (!feature) {
+    // ----------------------------------------------------------
+    // CLUSTER CLICK
+    // ----------------------------------------------------------
+
+    if (
+      clusterLayer.getVisible() &&
+      feature &&
+      feature.get("features")
+    ) {
+      const clusteredFeatures = feature.get("features");
+
+      if (clusteredFeatures.length > 1) {
+        const extent = ol.extent.createEmpty();
+
+        clusteredFeatures.forEach(function (clusterFeature) {
+          const geometry = clusterFeature.getGeometry();
+
+          if (geometry) {
+            ol.extent.extend(
+              extent,
+              geometry.getExtent()
+            );
+          }
+        });
+
+        map.getView().fit(extent, {
+          padding: [80, 80, 80, 80],
+          maxZoom: CLUSTER_MAX_ZOOM + 1,
+          duration: 350
+        });
+
+        return;
+      }
+
+      // A one-item cluster should behave like an individual experience.
+      if (clusteredFeatures.length === 1) {
+        const experienceFeature = clusteredFeatures[0];
+
+        if (typeof closeProfileSidebar === "function") {
+          closeProfileSidebar();
+        }
+
+        if (typeof openExperienceSidebar === "function") {
+          openExperienceSidebar(experienceFeature);
+        }
+
+        unlockMainMap();
+
+        return;
+      }
+    }
     closeSidebar();
     if (typeof closeProfileSidebar === "function") {
       closeProfileSidebar();
@@ -291,7 +520,7 @@ legendItems.forEach(function (item) {
       );
     });
 
-    vectorLayer.changed();
+    updateFilteredSource();
     closeSidebar();
   });
 });
