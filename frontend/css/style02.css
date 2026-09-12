@@ -2107,9 +2107,9 @@ body.profile-sidebar-open .emotion-legend {
     text-align: left;
     cursor: pointer;
     transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.15s ease;
+        background 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.15s ease;
 }
 
 .place-candidate:hover {
@@ -2199,8 +2199,7 @@ body.profile-sidebar-open .emotion-legend {
   margin: 14px 0 16px;
 }
 
-.place-search-row input,
-.place-search-input {
+.place-search-row input {
   flex: 1;
   min-width: 0;
   padding: 12px 14px;
@@ -2338,9 +2337,8 @@ body.profile-sidebar-open .emotion-legend {
 
 }
 
-#place-candidate-list.place-candidates,
-.place-candidates {
-  max-height: 220px; /* ~4 rows; raise if cards are taller */
+#place-selection-panel .choice-list {
+  max-height: 280px;
   overflow-y: auto;
   padding-right: 4px;
 }

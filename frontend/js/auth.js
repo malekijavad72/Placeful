@@ -61,29 +61,21 @@ function createSignInModal() {
     openSignUpModal();
   });
 
-  let signInPointerStartedInside = false;
+    let pointerDownOnOverlay = false;
 
   modal.addEventListener("pointerdown", function (event) {
-    const modalContent = modal.querySelector(".auth-modal");
-
-    signInPointerStartedInside =
-      modalContent && modalContent.contains(event.target);
+    pointerDownOnOverlay = event.target === modal;
   });
 
-  modal.addEventListener("click", function (event) {
-    const shouldClose =
-      event.target === modal &&
-      !signInPointerStartedInside;
-
-    signInPointerStartedInside = false;
-
-    if (shouldClose) {
+  modal.addEventListener("pointerup", function (event) {
+    if (pointerDownOnOverlay && event.target === modal) {
       closeSignInModal();
     }
+    pointerDownOnOverlay = false;
   });
 
   modal.addEventListener("pointercancel", function () {
-    signInPointerStartedInside = false;
+    pointerDownOnOverlay = false;
   });
 }
 
@@ -216,30 +208,22 @@ function createSignUpModal() {
     openSignInModal();
   });
 
-  let signUpPointerStartedInside = false;
+  let pointerDownOnOverlay = false;
 
-  modal.addEventListener("pointerdown", function (event) {
-    const modalContent = modal.querySelector(".auth-modal");
+    modal.addEventListener("pointerdown", function (event) {
+      pointerDownOnOverlay = event.target === modal;
+    });
 
-    signUpPointerStartedInside =
-      modalContent && modalContent.contains(event.target);
-  });
+    modal.addEventListener("pointerup", function (event) {
+      if (pointerDownOnOverlay && event.target === modal) {
+        closeSignUpModal();
+      }
+      pointerDownOnOverlay = false;
+    });
 
-  modal.addEventListener("click", function (event) {
-    const shouldClose =
-      event.target === modal &&
-      !signUpPointerStartedInside;
-
-    signUpPointerStartedInside = false;
-
-    if (shouldClose) {
-      closeSignUpModal();
-    }
-  });
-
-  modal.addEventListener("pointercancel", function () {
-    signUpPointerStartedInside = false;
-  });
+    modal.addEventListener("pointercancel", function () {
+      pointerDownOnOverlay = false;
+    });
 }
 
 function openSignUpModal() {

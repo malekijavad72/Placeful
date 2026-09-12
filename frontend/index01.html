@@ -1097,45 +1097,16 @@
                                         <div id="experience-step-1" class="experience-step">
                         <p class="step-help">Where did this happen? Pick a nearby place, search, or continue without one.</p>
                         <p id="selected-place-label" class="form-location" hidden></p>
-                        <p id="place-selection-status" class="place-selection-status" role="status">Looking for nearby places…</p>
+                        <p id="place-selection-status" class="step-help" role="status">Looking for nearby places…</p>
 
                         <div class="place-search-row">
-                            <input type="text" id="place-search-input" class="place-search-input" placeholder="Search for a place name" autocomplete="off">
-                            <button type="button" id="place-search-btn" class="place-search-btn">Search</button>
+                            <input type="text" id="place-search-input" placeholder="Search for a place name" autocomplete="off">
+                            <button type="button" id="place-search-btn" class="submit-experience-btn">Search</button>
                         </div>
 
-                        <div id="place-candidate-list" class="place-candidates"></div>
+                        <div id="place-candidate-list" class="choice-list place-candidate-list"></div>
 
-                            <div class="place-create-form">
-                                <div class="form-group">
-                                    <label for="place-create-name">Or name this spot yourself</label>
-                                    <input
-                                        type="text"
-                                        id="place-create-name"
-                                        class="place-search-input"
-                                        placeholder="e.g. Bench by the river"
-                                        maxlength="120"
-                                        autocomplete="off"
-                                    >
-                                </div>
-                            </div>
-
-                            <div class="place-selection-actions">
-                                <button
-                                    type="button"
-                                    id="place-create-btn"
-                                    class="place-action-btn place-action-btn--primary"
-                                >
-                                    Create Placeful place
-                                </button>
-                                <button
-                                    type="button"
-                                    id="place-skip-btn"
-                                    class="place-action-btn"
-                                >
-                                    Continue without a place
-                                </button>
-                            </div>
+                        <button type="button" id="place-skip-btn" class="cancel-btn place-skip-btn">Continue without a place</button>
                     </div>
 
                     <!-- STEP 2: story -->

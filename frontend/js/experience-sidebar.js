@@ -109,6 +109,23 @@ function openExperienceSidebar(feature) {
     sidebarTitle.textContent = title || "Untitled Experience";
   }
 
+  if (sidebarPlace) {
+    const placeName = feature.get("place_name");
+    const placeCategory = feature.get("place_category");
+    const placeCity = feature.get("place_city");
+    const placeId = feature.get("place_id");
+
+    if (placeName) {
+      sidebarPlace.textContent = "📍 " + placeName;
+      sidebarPlace.hidden = false;
+      sidebarPlace.dataset.placeId = placeId ? String(placeId) : "";
+    } else {
+      sidebarPlace.textContent = "";
+      sidebarPlace.hidden = true;
+      delete sidebarPlace.dataset.placeId;
+    }
+  }
+
   if (sidebarStory) {
     sidebarStory.textContent = story || "No story available.";
   }

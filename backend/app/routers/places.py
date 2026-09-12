@@ -33,9 +33,9 @@ router = APIRouter(
 # ============================================================
 
 SEARCH_RADII = [
+    50,
     100,
-    150,
-    300
+    200
 ]
 
 MIN_CANDIDATES = 10
@@ -2061,20 +2061,41 @@ def create_place(
     )
 
     try:
-
         db.commit()
-
-        db.refresh(
-            new_place
-        )
-
+        db.refresh(new_place)
     except Exception:
-
         db.rollback()
+
+        # Concurrent create: another request inserted the same OSM place
+        if place.osm_type and place.osm_id:
+            existing_place = (
+                db.query(Place)
+                .filter(
+                    Place.osm_type == place.osm_type,
+                    Place.osm_id == place.osm_id,
+                )
+                .first()
+            )
+            if existing_place is not None:
+                return {
+                    "id": existing_place.id,
+                    "name": existing_place.name,
+                    "description": existing_place.description,
+                    "category": existing_place.category,
+                    "latitude": place.latitude,
+                    "longitude": place.longitude,
+                    "address": existing_place.address,
+                    "city": existing_place.city,
+                    "country": existing_place.country,
+                    "osm_type": existing_place.osm_type,
+                    "osm_id": existing_place.osm_id,
+                    "created_at": existing_place.created_at,
+                    "updated_at": existing_place.updated_at,
+                }
 
         raise HTTPException(
             status_code=500,
-            detail="Failed to create place."
+            detail="Failed to create place.",
         )
 
 

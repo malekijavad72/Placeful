@@ -113,6 +113,19 @@ class Place(Base):
         server_default=text("now()")
     )
 
+
+
+    __table_args__ = (
+        Index(
+            "uq_places_osm_type_osm_id",
+            "osm_type",
+            "osm_id",
+            unique=True,
+            postgresql_where=text(
+                "osm_type IS NOT NULL AND osm_id IS NOT NULL"
+                ),
+        ),
+    )
 # ============================================================
 # EXPERIENCE
 # ============================================================

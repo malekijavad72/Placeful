@@ -19,8 +19,6 @@ const elPlaceStatus = document.getElementById("place-selection-status");
 const elPlaceSearchInput = document.getElementById("place-search-input");
 const elPlaceSearchBtn = document.getElementById("place-search-btn");
 const elPlaceSkipBtn = document.getElementById("place-skip-btn");
-const elPlaceCreateName = document.getElementById("place-create-name");
-const elPlaceCreateBtn = document.getElementById("place-create-btn");
 const elMediaInput = document.getElementById("experience-media");
 const elCloseForm = document.getElementById("close-experience-form");
 const elCancelForm = document.getElementById("cancel-experience");
@@ -155,41 +153,6 @@ async function createOrReusePlace(candidate) {
   return response.json();
 }
 
-async function createCustomPlacefulPlace(name) {
-  if (selectedLatitude == null || selectedLongitude == null) {
-    throw new Error("No location selected on the map.");
-  }
-
-  const trimmed = (name || "").trim();
-  if (trimmed.length < 2) {
-    throw new Error("Enter a place name (at least 2 characters).");
-  }
-
-  const response = await authenticatedFetch(API_BASE_URL + "/places/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: trimmed,
-      description: null,
-      category: null,
-      latitude: selectedLatitude,
-      longitude: selectedLongitude,
-      address: null,
-      city: null,
-      country: null,
-      osm_type: null,
-      osm_id: null
-    })
-  });
-
-  if (!response.ok) {
-    console.error("Custom place failed:", await response.text());
-    throw new Error("Could not create Placeful place.");
-  }
-
-  return response.json();
-}
-
 function clearPlaceList() {
   if (elPlaceList) elPlaceList.innerHTML = "";
 }
@@ -200,7 +163,7 @@ function renderPlaceCandidates(candidates) {
 
   if (!candidates.length) {
     const empty = document.createElement("p");
-    empty.className = "place-empty-message";
+    empty.className = "step-help";
     empty.textContent =
       "No places found nearby. Search or continue without a place.";
     elPlaceList.appendChild(empty);
@@ -210,24 +173,21 @@ function renderPlaceCandidates(candidates) {
   candidates.forEach(function (candidate) {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "place-candidate";
+    btn.className = "choice-card place-candidate-card";
 
     const name = candidate.name || "Unnamed place";
     const meta = [candidate.category, formatDistance(candidate.distance)]
       .filter(Boolean)
       .join(" · ");
 
-    const content = document.createElement("span");
-    content.className = "place-candidate-content";
-    const nameEl = document.createElement("span");
-    nameEl.className = "place-candidate-name";
-    nameEl.textContent = name;
-    const metaEl = document.createElement("span");
-    metaEl.className = "place-candidate-meta";
-    metaEl.textContent = meta;
-    content.appendChild(nameEl);
-    content.appendChild(metaEl);
-    btn.appendChild(content);
+    const strong = document.createElement("strong");
+    strong.textContent = name;
+    const small = document.createElement("small");
+    small.textContent = meta;
+    const span = document.createElement("span");
+    span.appendChild(strong);
+    span.appendChild(small);
+    btn.appendChild(span);
 
     btn.addEventListener("click", async function () {
       if (placeBusy) return;
@@ -300,9 +260,7 @@ function closeExperienceFormAndReset() {
 
   clearPlaceList();
   setPlaceStatus("");
-  if (elPlaceCreateName) elPlaceCreateName.value = "";
   setStatus("");
-  if (elPlaceCreateName) elPlaceCreateName.value = "";
   updateStepUI();
   updateLocationLabel();
   updatePlaceLabel();
@@ -414,34 +372,6 @@ if (elPlaceSearchInput) {
   });
 }
 
-if (elPlaceCreateBtn) {
-  elPlaceCreateBtn.addEventListener("click", async function () {
-    if (placeBusy) return;
-
-    const name = elPlaceCreateName ? elPlaceCreateName.value : "";
-    placeBusy = true;
-    elPlaceCreateBtn.disabled = true;
-    setStatus("Creating Placeful place…");
-
-    try {
-      const place = await createCustomPlacefulPlace(name);
-      selectedPlace = place;
-      selectedPlaceId = place.id;
-      updatePlaceLabel();
-      setStatus("");
-      setPlaceStatus("Placeful place created.");
-      experienceFormStep = 2;
-      updateStepUI();
-    } catch (error) {
-      console.error(error);
-      setStatus(error.message || "Could not create place.", true);
-    } finally {
-      placeBusy = false;
-      elPlaceCreateBtn.disabled = false;
-    }
-  });
-}
-
 if (elPlaceSkipBtn) {
   elPlaceSkipBtn.addEventListener("click", function () {
     selectedPlaceId = null;
@@ -508,21 +438,8 @@ if (elCancelForm) {
   elCancelForm.addEventListener("click", closeExperienceFormAndReset);
 }
 if (elFormOverlay) {
-  let pointerDownOnOverlay = false;
-
-  elFormOverlay.addEventListener("pointerdown", function (event) {
-    pointerDownOnOverlay = event.target === elFormOverlay;
-  });
-
-  elFormOverlay.addEventListener("pointerup", function (event) {
-    if (pointerDownOnOverlay && event.target === elFormOverlay) {
-      closeExperienceFormAndReset();
-    }
-    pointerDownOnOverlay = false;
-  });
-
-  elFormOverlay.addEventListener("pointercancel", function () {
-    pointerDownOnOverlay = false;
+  elFormOverlay.addEventListener("click", function (event) {
+    if (event.target === elFormOverlay) closeExperienceFormAndReset();
   });
 }
 

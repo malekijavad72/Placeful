@@ -74,6 +74,7 @@ const sidebar = document.getElementById("experience-sidebar");
 const sidebarBackdrop = document.getElementById("sidebar-backdrop");
 const sidebarClose = document.getElementById("sidebar-close");
 const sidebarTitle = document.getElementById("sidebar-title");
+const sidebarPlace = document.getElementById("sidebar-place");
 const sidebarStory = document.getElementById("sidebar-story");
 const sidebarEmotion = document.getElementById("sidebar-emotion");
 const sidebarCreator = document.getElementById("sidebar-creator");

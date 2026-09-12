@@ -1730,6 +1730,14 @@ body.profile-sidebar-open .emotion-legend {
   font-weight: 500;
 }
 
+.sidebar-place {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-hover, #a84b32);
+  line-height: 1.4;
+}
+
 .profile-stat-btn.active {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -2107,9 +2115,9 @@ body.profile-sidebar-open .emotion-legend {
     text-align: left;
     cursor: pointer;
     transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.15s ease;
+        background 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.15s ease;
 }
 
 .place-candidate:hover {
@@ -2193,35 +2201,32 @@ body.profile-sidebar-open .emotion-legend {
 }
 
 .place-search-row {
-  display: flex;
-  gap: 10px;
-  align-items: stretch;
-  margin: 14px 0 16px;
+    display: flex;
+    gap: 8px;
+    margin: 12px 0 14px;
 }
 
-.place-search-row input,
 .place-search-input {
-  flex: 1;
-  min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  background: var(--surface-soft);
-  color: var(--ink);
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    flex: 1;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
+    outline: none;
 }
 
-
-.place-search-row input:focus {
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(196, 92, 62, 0.14);
+.place-search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(196, 92, 62, 0.12);
 }
 
-.place-search-row input::placeholder {
-  color: var(--muted);
+.place-search-row button {
+  flex-shrink: 0;
+  padding: 0 14px;
+  min-height: 42px;
 }
 
 .place-search-btn {
@@ -2338,9 +2343,8 @@ body.profile-sidebar-open .emotion-legend {
 
 }
 
-#place-candidate-list.place-candidates,
-.place-candidates {
-  max-height: 220px; /* ~4 rows; raise if cards are taller */
+#place-selection-panel .choice-list {
+  max-height: 280px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -2353,10 +2357,12 @@ body.profile-sidebar-open .emotion-legend {
   margin-top: 14px;
 }
 
-.sidebar-place {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent-hover, #a84b32);
-  line-height: 1.4;
+.place-candidate-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 12px;
 }
+
+.place-candidate-card { width: 100%; text-align: left; }
+.place-skip-btn { width: 100%; margin-top: 4px; }
+.form-status-error { color: var(--danger, #b42318); }
