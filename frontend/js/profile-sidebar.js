@@ -40,6 +40,18 @@ let profileUserExperiences = [];
 let profileMiniMap = null;
 let profileMiniSource = null;
 
+let profileMiniFilteredSource = null;
+let profileMiniClusterSource = null;
+
+let profileMiniPointLayer = null;
+let profileMiniClusterLayer = null;
+let profileMiniHeatmapLayer = null;
+
+const PROFILE_MINI_HEATMAP_MAX_ZOOM = 9;
+const PROFILE_MINI_CLUSTER_MAX_ZOOM = 13;
+
+const profileMiniClusterStyleCache = {};
+
 function authFetch(path, options) {
   return authenticatedFetch(API_BASE_URL + path, options || {});
 }
@@ -176,34 +188,180 @@ function renderExperienceList(features) {
   });
 }
 
+function updateProfileMiniMapVisualization() {
+  if (!profileMiniMap) return;
+
+  const zoom = profileMiniMap.getView().getZoom();
+
+  if (zoom <= PROFILE_MINI_HEATMAP_MAX_ZOOM) {
+    profileMiniHeatmapLayer.setVisible(true);
+    profileMiniClusterLayer.setVisible(false);
+    profileMiniPointLayer.setVisible(false);
+    return;
+  }
+
+  if (zoom <= PROFILE_MINI_CLUSTER_MAX_ZOOM) {
+    profileMiniHeatmapLayer.setVisible(false);
+    profileMiniClusterLayer.setVisible(true);
+    profileMiniPointLayer.setVisible(false);
+    return;
+  }
+
+  profileMiniHeatmapLayer.setVisible(false);
+  profileMiniClusterLayer.setVisible(false);
+  profileMiniPointLayer.setVisible(true);
+}
+
 function ensureMiniMap() {
   if (!profileMiniMapEl || typeof ol === "undefined") return;
 
   if (!profileMiniMap) {
-    profileMiniSource = new ol.source.Vector();
-    profileMiniMap = new ol.Map({
+  profileMiniSource = new ol.source.Vector();
+
+  profileMiniFilteredSource = new ol.source.Vector();
+
+  profileMiniClusterSource = new ol.source.Cluster({
+    distance: 35,
+    minDistance: 15,
+    source: profileMiniFilteredSource
+  });
+
+  // --------------------------------------------------------
+  // INDIVIDUAL POINTS
+  // --------------------------------------------------------
+
+  profileMiniPointLayer = new ol.layer.Vector({
+    source: profileMiniFilteredSource,
+
+    style: function (feature) {
+      return new ol.style.Style({
+        image: new ol.style.Circle({
+          radius: 5,
+
+          fill: new ol.style.Fill({
+            color: "#ffffff"
+          }),
+
+          stroke: new ol.style.Stroke({
+            color: "#c45c3e",
+            width: 2
+          })
+        })
+      });
+    },
+
+    zIndex: 30
+  });
+
+  // --------------------------------------------------------
+  // CLUSTERS
+  // --------------------------------------------------------
+
+  profileMiniClusterLayer = new ol.layer.Vector({
+    source: profileMiniClusterSource,
+
+    style: function (feature) {
+      const features = feature.get("features") || [];
+      const size = features.length;
+
+      if (size === 1) {
+        return new ol.style.Style({
+          image: new ol.style.Circle({
+            radius: 5,
+
+            fill: new ol.style.Fill({
+              color: "#ffffff"
+            }),
+
+            stroke: new ol.style.Stroke({
+              color: "#c45c3e",
+              width: 2
+            })
+          })
+        });
+      }
+
+      let style = profileMiniClusterStyleCache[size];
+
+      if (!style) {
+        const radius = Math.min(
+          20,
+          8 + Math.log(size) * 4
+        );
+
+        style = new ol.style.Style({
+          image: new ol.style.Circle({
+            radius: radius,
+
+            fill: new ol.style.Fill({
+              color: "rgba(196, 92, 62, 0.90)"
+            }),
+
+            stroke: new ol.style.Stroke({
+              color: "rgba(255,255,255,0.95)",
+              width: 2
+            })
+          }),
+
+          text: new ol.style.Text({
+            text: String(size),
+            font: "600 11px Arial",
+
+            fill: new ol.style.Fill({
+              color: "#ffffff"
+            }),
+
+            stroke: new ol.style.Stroke({
+              color: "rgba(0,0,0,0.15)",
+              width: 2
+            })
+          })
+        });
+
+        profileMiniClusterStyleCache[size] = style;
+      }
+
+      return style;
+    },
+
+    zIndex: 20
+  });
+
+  // --------------------------------------------------------
+  // HEATMAP
+  // --------------------------------------------------------
+
+  profileMiniHeatmapLayer = new ol.layer.Heatmap({
+    source: profileMiniFilteredSource,
+
+    blur: 24,
+    radius: 15,
+
+    weight: function () {
+      return 1;
+    },
+
+    gradient: [
+      "rgba(196, 92, 62, 0)",
+      "rgba(196, 92, 62, 0.20)",
+      "rgba(196, 92, 62, 0.42)",
+      "rgba(196, 92, 62, 0.68)",
+      "rgba(168, 75, 50, 0.90)"
+    ],
+
+    zIndex: 10
+  });
+
+  profileMiniMap = new ol.Map({
       target: profileMiniMapEl,
       layers: [
-        new ol.layer.Tile({ source: new ol.source.OSM() }),
-        new ol.layer.Vector({
-          source: profileMiniSource,
-          style: function (feature) {
-            const emotion = feature.get("emotion");
-            const emoji = emotionEmoji(emotion);
-            return new ol.style.Style({
-              text: new ol.style.Text({
-                text: emoji,
-                font: "20px Arial",
-                textAlign: "center",
-                textBaseline: "middle",
-                stroke: new ol.style.Stroke({
-                  color: "rgba(255,255,255,0.9)",
-                  width: 2
-                })
-              })
-            });
-          }
-        })
+        new ol.layer.Tile({
+          source: new ol.source.OSM()
+        }),
+
+        profileMiniHeatmapLayer,
+        profileMiniClusterLayer,
+        profileMiniPointLayer
       ],
       view: new ol.View({
         center: ol.proj.fromLonLat([45.0783, 37.5497]),
@@ -212,14 +370,86 @@ function ensureMiniMap() {
       controls: []
     });
 
+    profileMiniMap.getView().on(
+      "change:resolution",
+      updateProfileMiniMapVisualization
+    );
+
+    updateProfileMiniMapVisualization();
+
     profileMiniMap.on("singleclick", function (event) {
       const feature = profileMiniMap.forEachFeatureAtPixel(
         event.pixel,
-        function (f) {
-          return f;
+        function (f, layer) {
+          if (
+            layer === profileMiniClusterLayer ||
+            layer === profileMiniPointLayer
+          ) {
+            return f;
+          }
+
+          return null;
         }
       );
-      if (feature && typeof focusExperienceOnMap === "function") {
+
+      if (!feature) return;
+
+      // --------------------------------------------------------
+      // CLUSTER
+      // --------------------------------------------------------
+
+      if (
+        profileMiniClusterLayer.getVisible() &&
+        feature.get("features")
+      ) {
+        const clusteredFeatures = feature.get("features");
+
+        if (clusteredFeatures.length > 1) {
+          const extent = ol.extent.createEmpty();
+
+          clusteredFeatures.forEach(function (clusterFeature) {
+            const geometry = clusterFeature.getGeometry();
+
+            if (geometry) {
+              ol.extent.extend(
+                extent,
+                geometry.getExtent()
+              );
+            }
+          });
+
+          profileMiniMap.getView().fit(extent, {
+            padding: [24, 24, 24, 24],
+            maxZoom: PROFILE_MINI_CLUSTER_MAX_ZOOM + 1,
+            duration: 250
+          });
+
+          return;
+        }
+
+        if (clusteredFeatures.length === 1) {
+          const experienceFeature = clusteredFeatures[0];
+
+          if (
+            typeof focusExperienceOnMap === "function"
+          ) {
+            focusExperienceOnMap(
+              experienceFeature.get("id")
+            );
+          }
+
+          return;
+        }
+      }
+
+      // --------------------------------------------------------
+      // INDIVIDUAL EXPERIENCE
+      // --------------------------------------------------------
+
+      if (
+        profileMiniPointLayer.getVisible() &&
+        typeof focusExperienceOnMap === "function"
+      ) {
         focusExperienceOnMap(feature.get("id"));
       }
     });
@@ -236,11 +466,20 @@ function updateMiniMap(features) {
   if (!profileMiniSource || !profileMiniMap) return;
 
   profileMiniSource.clear();
+    profileMiniFilteredSource.clear();
 
-  const clones = features.map(function (feature) {
-    return feature.clone();
-  });
-  profileMiniSource.addFeatures(clones);
+    const clones = features
+      .filter(function (feature) {
+        return feature &&
+          feature.getGeometry() &&
+          feature.get("id");
+      })
+      .map(function (feature) {
+        return feature.clone();
+      });
+
+    profileMiniSource.addFeatures(clones);
+    profileMiniFilteredSource.addFeatures(clones);
 
   // Size must be correct before fit, or extent calculation looks wrong
   profileMiniMap.updateSize();

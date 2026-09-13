@@ -407,82 +407,69 @@ map.on("pointermove", function (event) {
 });
 
 map.on("singleclick", function (event) {
+
   if (isSelectingLocation) {
     selectExperienceLocation(event.coordinate);
     return;
   }
 
   const feature = map.forEachFeatureAtPixel(
-  event.pixel,
-  function (f, layer) {
-    if (layer === clusterLayer || layer === vectorLayer) {
-      return f;
+    event.pixel,
+    function (f, layer) {
+
+      // ------------------------------------------
+      // CLUSTER LAYER
+      // ------------------------------------------
+      if (layer === clusterLayer) {
+
+        const clusteredFeatures = f.get("features");
+
+        if (!clusteredFeatures) {
+          return null;
+        }
+
+        // More than one experience:
+        // cluster is representation only → not clickable
+        if (clusteredFeatures.length > 1) {
+          return null;
+        }
+
+        // Exactly one experience:
+        // treat the single-item cluster as the point itself
+        if (clusteredFeatures.length === 1) {
+          return clusteredFeatures[0];
+        }
+
+        return null;
+      }
+
+      // ------------------------------------------
+      // INDIVIDUAL EXPERIENCE POINT
+      // ------------------------------------------
+      if (layer === vectorLayer) {
+        return f;
+      }
+
+      return null;
     }
+  );
 
-    return null;
-  }
-);
-
+  // ------------------------------------------
+  // NOTHING CLICKABLE
+  // ------------------------------------------
   if (!feature) {
-    // ----------------------------------------------------------
-    // CLUSTER CLICK
-    // ----------------------------------------------------------
-
-    if (
-      clusterLayer.getVisible() &&
-      feature &&
-      feature.get("features")
-    ) {
-      const clusteredFeatures = feature.get("features");
-
-      if (clusteredFeatures.length > 1) {
-        const extent = ol.extent.createEmpty();
-
-        clusteredFeatures.forEach(function (clusterFeature) {
-          const geometry = clusterFeature.getGeometry();
-
-          if (geometry) {
-            ol.extent.extend(
-              extent,
-              geometry.getExtent()
-            );
-          }
-        });
-
-        map.getView().fit(extent, {
-          padding: [80, 80, 80, 80],
-          maxZoom: CLUSTER_MAX_ZOOM + 1,
-          duration: 350
-        });
-
-        return;
-      }
-
-      // A one-item cluster should behave like an individual experience.
-      if (clusteredFeatures.length === 1) {
-        const experienceFeature = clusteredFeatures[0];
-
-        if (typeof closeProfileSidebar === "function") {
-          closeProfileSidebar();
-        }
-
-        if (typeof openExperienceSidebar === "function") {
-          openExperienceSidebar(experienceFeature);
-        }
-
-        unlockMainMap();
-
-        return;
-      }
-    }
     closeSidebar();
+
     if (typeof closeProfileSidebar === "function") {
       closeProfileSidebar();
     }
+
     return;
   }
 
-  // Profile sits above experience sidebar — close it first
+  // ------------------------------------------
+  // EXPERIENCE POINT
+  // ------------------------------------------
   if (typeof closeProfileSidebar === "function") {
     closeProfileSidebar();
   }
@@ -490,6 +477,7 @@ map.on("singleclick", function (event) {
   if (typeof openExperienceSidebar === "function") {
     openExperienceSidebar(feature);
   }
+
   if (typeof unlockMainMap === "function") {
     unlockMainMap();
   }
