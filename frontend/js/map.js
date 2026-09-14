@@ -56,11 +56,24 @@ const vectorSource = new ol.source.Vector();
 const filteredSource = new ol.source.Vector();
 
 // ----------------------------------------------------------
+// PLACE SOURCE
+// ----------------------------------------------------------
+
+const placeSource = new ol.source.Vector();
+
+// ----------------------------------------------------------
 // MAP VISUALIZATION THRESHOLDS
 // ----------------------------------------------------------
 
 const HEATMAP_MAX_ZOOM = 9;
 const CLUSTER_MAX_ZOOM = 13;
+
+// ----------------------------------------------------------
+// PLACE VISIBILITY THRESHOLDS
+// ----------------------------------------------------------
+
+const PLACE_MEDIUM_ZOOM = 11;
+const PLACE_HIGH_ZOOM = 13;
 
 // ----------------------------------------------------------
 // INDIVIDUAL EXPERIENCE LAYER
@@ -70,6 +83,16 @@ const vectorLayer = new ol.layer.Vector({
   source: filteredSource,
   style: getExperienceStyle,
   zIndex: 30
+});
+
+// ----------------------------------------------------------
+// PLACE LAYER
+// ----------------------------------------------------------
+
+const placeLayer = new ol.layer.Vector({
+  source: placeSource,
+  style: getPlaceStyle,
+  zIndex: 25
 });
 
 // ----------------------------------------------------------
@@ -168,6 +191,7 @@ const heatmapLayer = new ol.layer.Heatmap({
 });
 
 map.addLayer(heatmapLayer);
+map.addLayer(placeLayer);
 map.addLayer(clusterLayer);
 map.addLayer(vectorLayer);
 
@@ -259,6 +283,69 @@ function getExperienceStyle(feature) {
 }
 
 // ----------------------------------------------------------
+// PLACE STYLE
+// ----------------------------------------------------------
+
+function getPlaceStyle(feature) {
+  const experienceCount =
+    Number(feature.get("experience_count") || 0);
+
+  const zoom = map.getView().getZoom();
+
+  // --------------------------------------------------------
+  // Decide whether this Place should be visible
+  // --------------------------------------------------------
+
+  if (zoom < PLACE_MEDIUM_ZOOM) {
+    if (experienceCount < 5) {
+      return null;
+    }
+  }
+
+  else if (zoom < PLACE_HIGH_ZOOM) {
+    if (experienceCount < 2) {
+      return null;
+    }
+  }
+
+  // --------------------------------------------------------
+  // Marker size reflects number of experiences
+  // --------------------------------------------------------
+
+  let radius = 7;
+
+  if (experienceCount >= 10) {
+    radius = 11;
+  }
+  else if (experienceCount >= 5) {
+    radius = 9;
+  }
+
+  // --------------------------------------------------------
+  // Place marker
+  // --------------------------------------------------------
+
+  return new ol.style.Style({
+    image: new ol.style.RegularShape({
+      points: 4,
+
+      radius: radius,
+
+      angle: Math.PI / 4,
+
+      fill: new ol.style.Fill({
+        color: "#c45c3e"
+      }),
+
+      stroke: new ol.style.Stroke({
+        color: "#ffffff",
+        width: 2
+      })
+    })
+  });
+}
+
+// ----------------------------------------------------------
 // LOAD EXPERIENCES  (auth helpers live in api.js)
 // ----------------------------------------------------------
 
@@ -324,6 +411,59 @@ async function loadExperiences() {
   }
 }
 
+async function loadPlaces() {
+
+    try {
+
+        const response = await apiFetch(
+            API_BASE_URL + "/places/with-experiences"
+        );
+
+        if (!response.ok) {
+            throw new Error("HTTP error: " + response.status);
+        }
+
+        const places = await response.json();
+
+        const features = places.map(function (place) {
+
+            return new ol.Feature({
+                geometry: new ol.geom.Point(
+                    ol.proj.fromLonLat([
+                        place.longitude,
+                        place.latitude
+                    ])
+                ),
+
+                id: place.id,
+                name: place.name,
+                category: place.category,
+                address: place.address,
+                city: place.city,
+                country: place.country,
+                experience_count: place.experience_count  
+                
+            });
+
+        });
+
+        placeSource.clear();
+
+        placeSource.addFeatures(features);
+
+        placeLayer.changed();
+
+    } catch (error) {
+
+        console.error(
+            "Failed to load places:",
+            error
+        );
+
+    }
+
+}
+
 function updateMapVisualization() {
   const zoom = map.getView().getZoom();
 
@@ -347,10 +487,14 @@ function updateMapVisualization() {
 }
 
 map.getView().on("change:resolution", updateMapVisualization);
+map.getView().on("change:resolution", function () {
+  placeLayer.changed();
+});
 
 updateMapVisualization();
 
 loadExperiences();
+loadPlaces();
 updateAddExperienceButton();
 
 function unlockMainMap() {
@@ -382,8 +526,35 @@ map.on("pointermove", function (event) {
   const feature = map.forEachFeatureAtPixel(
   event.pixel,
   function (f, layer) {
-    if (layer === clusterLayer || layer === vectorLayer) {
-      return f;
+
+    if (layer === placeLayer) {
+      return {
+        type: "place",
+        feature: f
+      };
+    }
+
+    if (layer === vectorLayer) {
+      return {
+        type: "experience",
+        feature: f
+      };
+    }
+
+    if (layer === clusterLayer) {
+      const clusteredFeatures = f.get("features");
+
+      if (
+        clusteredFeatures &&
+        clusteredFeatures.length === 1
+      ) {
+        return {
+          type: "experience",
+          feature: clusteredFeatures[0]
+        };
+      }
+
+      return null;
     }
 
     return null;
@@ -413,58 +584,107 @@ map.on("singleclick", function (event) {
     return;
   }
 
-  const feature = map.forEachFeatureAtPixel(
+  let feature = map.forEachFeatureAtPixel(
     event.pixel,
     function (f, layer) {
 
-      // ------------------------------------------
-      // CLUSTER LAYER
-      // ------------------------------------------
-      if (layer === clusterLayer) {
-
-        const clusteredFeatures = f.get("features");
-
-        if (!clusteredFeatures) {
-          return null;
-        }
-
-        // More than one experience:
-        // cluster is representation only → not clickable
-        if (clusteredFeatures.length > 1) {
-          return null;
-        }
-
-        // Exactly one experience:
-        // treat the single-item cluster as the point itself
-        if (clusteredFeatures.length === 1) {
-          return clusteredFeatures[0];
-        }
-
-        return null;
-      }
-
-      // ------------------------------------------
-      // INDIVIDUAL EXPERIENCE POINT
-      // ------------------------------------------
-      if (layer === vectorLayer) {
-        return f;
+      if (layer === placeLayer) {
+        return {
+          type: "place",
+          feature: f
+        };
       }
 
       return null;
     }
   );
 
+  if (!feature) {
+    feature = map.forEachFeatureAtPixel(
+      event.pixel,
+      function (f, layer) {
+
+        if (layer === vectorLayer) {
+          return {
+            type: "experience",
+            feature: f
+          };
+        }
+
+        if (layer === clusterLayer) {
+
+          const clusteredFeatures = f.get("features");
+
+          if (
+            clusteredFeatures &&
+            clusteredFeatures.length === 1
+          ) {
+            return {
+              type: "experience",
+              feature: clusteredFeatures[0]
+            };
+          }
+
+          return null;
+        }
+
+        return null;
+      }
+    );
+  }
+
+  if (feature && feature.type === "place") {
+
+    if (typeof closeProfileSidebar === "function") {
+      closeProfileSidebar();
+    }
+
+    if (typeof openPlaceSidebar === "function") {
+      openPlaceSidebar(feature.feature);
+    }
+
+    unlockMainMap();
+
+    return;
+  }
+  
   // ------------------------------------------
   // NOTHING CLICKABLE
   // ------------------------------------------
   if (!feature) {
     closeSidebar();
 
+    if (typeof closePlaceSidebar === "function") {
+        closePlaceSidebar();
+    }
+
     if (typeof closeProfileSidebar === "function") {
       closeProfileSidebar();
     }
 
     return;
+  }
+
+
+  // ------------------------------------------
+  // PLACE
+  // ------------------------------------------
+
+  if (feature.type === "place") {
+
+      if (typeof closeSidebar === "function") {
+          closeSidebar();
+      }
+
+      if (typeof closeProfileSidebar === "function") {
+          closeProfileSidebar();
+      }
+
+      if (typeof openPlaceSidebar === "function") {
+          openPlaceSidebar(feature.feature);
+      }
+
+      return;
   }
 
   // ------------------------------------------
@@ -475,7 +695,7 @@ map.on("singleclick", function (event) {
   }
 
   if (typeof openExperienceSidebar === "function") {
-    openExperienceSidebar(feature);
+    openExperienceSidebar(feature.feature);
   }
 
   if (typeof unlockMainMap === "function") {

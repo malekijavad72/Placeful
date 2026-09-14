@@ -560,6 +560,7 @@ main {
   inset: 0;
   z-index: 1900;
   background: rgba(28, 36, 48, 0.28);
+  pointer-events: none;
 }
 
 /* Sidebar is on the left — keep map controls on the right */
@@ -2359,4 +2360,88 @@ body.profile-sidebar-open .emotion-legend {
   font-weight: 600;
   color: var(--accent-hover, #a84b32);
   line-height: 1.4;
+}
+
+/* =========================================================
+   PLACE SIDEBAR
+   ========================================================= */
+
+.place-sidebar-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+
+.place-sidebar-content h2 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 22px;
+    line-height: 1.25;
+}
+
+
+.place-sidebar-count {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+
+.place-sidebar-count span:first-child {
+    color: var(--ink);
+    font-size: 18px;
+    font-weight: 750;
+}
+
+
+.place-sidebar-experiences {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+
+.place-experience-item {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-soft);
+    text-align: left;
+    cursor: pointer;
+    transition:
+        background 0.18s ease,
+        border-color 0.18s ease,
+        transform 0.18s ease;
+}
+
+
+.place-experience-item:hover {
+    background: var(--surface);
+    border-color: var(--line-strong);
+    transform: translateY(-1px);
+}
+
+
+.place-experience-title {
+    margin-bottom: 5px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+
+.place-experience-story {
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }

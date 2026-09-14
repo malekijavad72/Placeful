@@ -1,21 +1,38 @@
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func, or_, and_
 from geoalchemy2 import WKTElement
 
 import httpx
 import math
+import json
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from sqlalchemy import text, func, or_, and_
+from geoalchemy2 import WKTElement
 
 from app.database import get_db
-from app.models import Place, User
+from app.models import (
+    Place,
+    User,
+    Experience,
+    Emotion,
+    ExperienceEmotion,
+    UserFollow
+)
 from app.schemas import (
     PlaceCreate,
     PlaceResponse,
     PlaceCandidate,
-    PlaceIdentificationResponse
+    PlaceIdentificationResponse,
+    GeoJSONFeatureCollection
 )
-from app.dependencies import get_current_user
+from app.dependencies import (
+    get_current_user,
+    get_optional_current_user
+)
 
 
 # ============================================================
@@ -1823,6 +1840,397 @@ def search_places(
         "candidates": final_candidates
     }
 
+
+# ============================================================
+# GET EXPERIENCES FOR PLACE
+# ============================================================
+
+@router.get(
+    "/{place_id}/experiences",
+    response_model=GeoJSONFeatureCollection
+)
+def get_place_experiences(
+    place_id: uuid.UUID,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(
+        get_optional_current_user
+    ),
+):
+
+    # --------------------------------------------------------
+    # Check that the Place exists
+    # --------------------------------------------------------
+
+    place = (
+        db.query(Place)
+        .filter(
+            Place.id == place_id
+        )
+        .first()
+    )
+
+    if place is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Place not found."
+        )
+
+    # --------------------------------------------------------
+    # Get experiences belonging to this Place
+    # --------------------------------------------------------
+
+    experiences = (
+        db.query(
+            Experience.id,
+            Experience.title,
+            Experience.story,
+            Experience.user_id,
+
+            func.ST_AsGeoJSON(
+                Experience.location
+            ).label("location"),
+
+            Experience.visibility,
+            Experience.is_anonymous,
+
+            Emotion.name.label(
+                "emotion_name"
+            ),
+
+            Emotion.slug.label(
+                "emotion_slug"
+            ),
+
+            User.username.label(
+                "username"
+            ),
+
+            User.display_name.label(
+                "display_name"
+            ),
+
+            User.profile_image_url.label(
+                "profile_image_url"
+            ),
+
+            Experience.created_at,
+            Experience.updated_at,
+
+            Experience.place_id,
+
+            Place.name.label(
+                "place_name"
+            ),
+
+            Place.category.label(
+                "place_category"
+            ),
+
+            Place.address.label(
+                "place_address"
+            ),
+
+            Place.city.label(
+                "place_city"
+            ),
+
+            Place.country.label(
+                "place_country"
+            )
+        )
+
+        # ----------------------------------------------------
+        # Emotion
+        # ----------------------------------------------------
+
+        .outerjoin(
+            ExperienceEmotion,
+            Experience.id ==
+            ExperienceEmotion.experience_id
+        )
+
+        .outerjoin(
+            Emotion,
+            ExperienceEmotion.emotion_id ==
+            Emotion.id
+        )
+
+        # ----------------------------------------------------
+        # User
+        # ----------------------------------------------------
+
+        .outerjoin(
+            User,
+            Experience.user_id ==
+            User.id
+        )
+
+        # ----------------------------------------------------
+        # Place
+        # ----------------------------------------------------
+
+        .outerjoin(
+            Place,
+            Experience.place_id ==
+            Place.id
+        )
+
+        # ----------------------------------------------------
+        # IMPORTANT:
+        # Only experiences belonging to this Place
+        # ----------------------------------------------------
+
+        .filter(
+            Experience.place_id == place_id
+        )
+    )
+
+    # ========================================================
+    # VISIBILITY RULES
+    # ========================================================
+
+    if current_user is None:
+
+        # Anonymous visitor:
+        # only public experiences
+
+        experiences = experiences.filter(
+            Experience.visibility == "public"
+        )
+
+    else:
+
+        followed_ids = (
+            db.query(
+                UserFollow.following_id
+            )
+            .filter(
+                UserFollow.follower_id ==
+                current_user.id
+            )
+        )
+
+        experiences = experiences.filter(
+            or_(
+                # Public
+                Experience.visibility ==
+                "public",
+
+                # Own experiences
+                Experience.user_id ==
+                current_user.id,
+
+                # Followers-only experiences
+                and_(
+                    Experience.visibility ==
+                    "followers",
+
+                    Experience.user_id.in_(
+                        followed_ids
+                    )
+                )
+            )
+        )
+
+    # ========================================================
+    # ORDER / PAGINATION
+    # ========================================================
+
+    experiences = (
+        experiences
+
+        .order_by(
+            Experience.created_at.desc()
+        )
+
+        .offset(offset)
+
+        .limit(limit)
+
+        .all()
+    )
+
+    # ========================================================
+    # BUILD GEOJSON
+    # ========================================================
+
+    features = []
+
+    for experience in experiences:
+
+        geometry = None
+
+        if experience.location:
+
+            geometry = json.loads(
+                experience.location
+            )
+
+        feature = {
+            "type": "Feature",
+
+            "geometry": geometry,
+
+            "properties": {
+
+                "id": str(
+                    experience.id
+                ),
+
+                "title":
+                    experience.title,
+
+                "story":
+                    experience.story,
+
+                "emotion":
+                    experience.emotion_slug,
+
+                "emotion_name":
+                    experience.emotion_name,
+
+                "visibility":
+                    experience.visibility,
+
+                "is_anonymous":
+                    experience.is_anonymous,
+
+                "user_id": (
+                    None
+                    if experience.is_anonymous
+                    else (
+                        str(experience.user_id)
+                        if experience.user_id
+                        else None
+                    )
+                ),
+
+                "username": (
+                    None
+                    if experience.is_anonymous
+                    else experience.username
+                ),
+
+                "display_name": (
+                    None
+                    if experience.is_anonymous
+                    else experience.display_name
+                ),
+
+                "profile_image_url": (
+                    None
+                    if experience.is_anonymous
+                    else experience.profile_image_url
+                ),
+
+                "created_at": (
+                    experience.created_at.isoformat()
+                    if experience.created_at
+                    else None
+                ),
+
+                "updated_at": (
+                    experience.updated_at.isoformat()
+                    if experience.updated_at
+                    else None
+                ),
+
+                "place_id": (
+                    str(experience.place_id)
+                    if experience.place_id
+                    else None
+                ),
+
+                "place_name":
+                    experience.place_name,
+
+                "place_category":
+                    experience.place_category,
+
+                "place_address":
+                    experience.place_address,
+
+                "place_city":
+                    experience.place_city,
+
+                "place_country":
+                    experience.place_country
+            }
+        }
+
+        features.append(
+            feature
+        )
+
+    # ========================================================
+    # RETURN
+    # ========================================================
+
+    return {
+        "type": "FeatureCollection",
+        "features": features
+    }
+
+
+@router.get("/with-experiences")
+def get_places_with_experiences(
+    db: Session = Depends(get_db)
+):
+    places = (
+        db.query(
+            Place,
+            func.count(Experience.id).label("experience_count")
+        )
+        .join(
+            Experience,
+            Experience.place_id == Place.id
+        )
+        .group_by(Place.id)
+        .all()
+    )
+
+    result = []
+
+    for place, experience_count in places:
+
+        if place.location is None:
+            continue
+
+        point = db.execute(
+            text(
+                """
+                SELECT
+                    ST_X(location),
+                    ST_Y(location)
+                FROM places
+                WHERE id = :place_id
+                """
+            ),
+            {"place_id": place.id}
+        ).first()
+
+        if point is None:
+            continue
+
+        result.append({
+            "id": str(place.id),
+            "name": place.name,
+            "description": place.description,
+            "category": place.category,
+            "address": place.address,
+            "city": place.city,
+            "country": place.country,
+            "osm_type": place.osm_type,
+            "osm_id": place.osm_id,
+            "longitude": point[0],
+            "latitude": point[1],
+            "experience_count": experience_count
+        })
+
+    return result
 
 # ============================================================
 # GET PLACE

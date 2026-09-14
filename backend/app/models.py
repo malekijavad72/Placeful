@@ -12,7 +12,8 @@ from sqlalchemy import (
     String,
     Text,
     text,
-    func
+    func,
+    Integer
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -113,6 +114,10 @@ class Place(Base):
         server_default=text("now()")
     )
 
+    experience_count: Mapped[int] = mapped_column(
+        nullable=False,
+        server_default=text("1")
+        )
 
 
     __table_args__ = (
