@@ -161,6 +161,11 @@ function closePlaceSidebar() {
         return;
     }
 
+    // Avoid aria-hidden on an ancestor of the focused element
+    if (placeSidebar.contains(document.activeElement)) {
+        document.activeElement.blur();
+    }
+
     placeSidebar.classList.remove("open");
 
     placeSidebar.setAttribute(
@@ -260,14 +265,29 @@ async function loadPlaceExperiences(placeId) {
             function (feature) {
 
                 const item =
-                    document.createElement("button");
-
-                item.type =
-                    "button";
+                    document.createElement("div");
 
                 item.className =
                     "place-experience-item";
 
+                item.setAttribute(
+                    "role",
+                    "button"
+                );
+
+                item.setAttribute(
+                    "tabindex",
+                    "0"
+                );
+
+
+                const displayName =
+                    feature.get("display_name") ||
+                    "Unknown user";
+
+                const profileImageUrl =
+                    feature.get("profile_image_url") ||
+                    "";
 
                 const title =
                     feature.get("title") ||
@@ -278,36 +298,182 @@ async function loadPlaceExperiences(placeId) {
                     "";
 
 
-                const titleElement =
+                const content =
                     document.createElement("div");
 
-                titleElement.className =
-                    "place-experience-title";
-
-                titleElement.textContent =
-                    title;
+                content.className =
+                    "place-experience-content";
 
 
-                const storyElement =
+                const profileImage =
+                    document.createElement("img");
+
+                profileImage.className =
+                    "place-experience-avatar";
+
+                profileImage.alt =
+                    displayName;
+
+                if (profileImageUrl) {
+
+                    profileImage.src =
+                        profileImageUrl;
+
+                } else {
+
+                    profileImage.hidden =
+                        true;
+                }
+
+
+                const textContainer =
                     document.createElement("div");
 
-                storyElement.className =
-                    "place-experience-story";
+                textContainer.className =
+                    "place-experience-text";
 
-                storyElement.textContent =
-                    story;
+                const userId =
+                    feature.get("user_id");
+
+                const username =
+                    feature.get("username") ||
+                    "";
 
 
-                item.appendChild(
-                    titleElement
-                );
 
-                if (story) {
+                const authorRow =
+                    document.createElement("div");
 
-                    item.appendChild(
-                        storyElement
+                authorRow.className =
+                    "place-experience-author";
+
+
+
+                if (username && userId) {
+
+                    const usernameElement =
+                        document.createElement("button");
+
+                    usernameElement.type =
+                        "button";
+
+                    usernameElement.className =
+                        "place-experience-username";
+
+                    usernameElement.textContent =
+                        "@" + username;
+
+
+                    usernameElement.addEventListener(
+                        "click",
+                        function (event) {
+
+                            event.stopPropagation();
+
+                            closePlaceSidebar();
+
+                            if (
+                                typeof openUserProfile ===
+                                "function"
+                            ) {
+                                openUserProfile(
+                                    userId
+                                );
+                            }
+                        }
+                    );
+
+
+                    authorRow.appendChild(
+                        usernameElement
                     );
                 }
+
+
+
+if (username && userId) {
+
+    const separator =
+        document.createElement("span");
+
+    separator.className =
+        "place-experience-author-separator";
+
+    separator.textContent =
+        " · ";
+
+    authorRow.appendChild(
+        separator
+    );
+}
+
+
+
+const displayNameElement =
+    document.createElement("span");
+
+displayNameElement.className =
+    "place-experience-display-name";
+
+displayNameElement.textContent =
+    displayName;
+
+
+authorRow.appendChild(
+    displayNameElement
+);
+
+
+
+const titleElement =
+    document.createElement("div");
+
+titleElement.className =
+    "place-experience-title";
+
+titleElement.textContent =
+    title;
+
+
+
+const storyElement =
+    document.createElement("div");
+
+storyElement.className =
+    "place-experience-story";
+
+storyElement.textContent =
+    story;
+
+
+
+textContainer.appendChild(
+    authorRow
+);
+
+textContainer.appendChild(
+    titleElement
+);
+
+if (story) {
+
+    textContainer.appendChild(
+        storyElement
+    );
+}
+
+
+                content.appendChild(
+                    profileImage
+                );
+
+                content.appendChild(
+                    textContainer
+                );
+
+                item.appendChild(
+                    content
+                );
 
 
                 item.addEventListener(
@@ -331,6 +497,22 @@ async function loadPlaceExperiences(placeId) {
                             openExperienceSidebar(
                                 feature
                             );
+                        }
+                    }
+                );
+
+                item.addEventListener(
+                    "keydown",
+                    function (event) {
+
+                        if (
+                            event.key === "Enter" ||
+                            event.key === " "
+                        ) {
+
+                            event.preventDefault();
+
+                            item.click();
                         }
                     }
                 );

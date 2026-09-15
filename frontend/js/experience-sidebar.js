@@ -29,7 +29,19 @@ function closeSidebar() {
   }
 
   sidebar.classList.remove("open");
-  sidebar.setAttribute("aria-hidden", "true");
+
+  if (
+      sidebar.contains(
+          document.activeElement
+      )
+  ) {
+      document.activeElement.blur();
+  }
+
+  sidebar.setAttribute(
+      "aria-hidden",
+      "true"
+  );
   document.body.classList.remove("sidebar-open");
 
   if (sidebarBackdrop) {
@@ -90,6 +102,56 @@ function focusExperienceOnMap(experienceId) {
 
 window.focusExperienceOnMap = focusExperienceOnMap;
 
+function focusPlaceOnMap(placeId) {
+  if (!placeId) return;
+
+  if (typeof placeSource === "undefined" || !placeSource) {
+    return;
+  }
+
+  const features = placeSource.getFeatures();
+  let target = null;
+
+  for (let i = 0; i < features.length; i++) {
+    if (String(features[i].get("id")) === String(placeId)) {
+      target = features[i];
+      break;
+    }
+  }
+
+  if (!target) return;
+
+  isSelectingLocation = false;
+
+  const geometry = target.getGeometry();
+  if (geometry && typeof map !== "undefined") {
+    map.getView().fit(geometry.getExtent(), {
+      padding: [100, 100, 100, 100],
+      maxZoom: 16,
+      duration: 400,
+      callback: function () {
+        if (typeof unlockMainMap === "function") {
+          unlockMainMap();
+        }
+      }
+    });
+  }
+
+  if (typeof unlockMainMap === "function") {
+    unlockMainMap();
+  }
+
+  setTimeout(function () {
+    if (typeof unlockMainMap === "function") unlockMainMap();
+  }, 100);
+
+  setTimeout(function () {
+    if (typeof unlockMainMap === "function") unlockMainMap();
+  }, 500);
+}
+
+window.focusPlaceOnMap = focusPlaceOnMap;
+
 function openExperienceSidebar(feature) {
   const experienceId = feature.get("id");
   const title = feature.get("title");
@@ -111,18 +173,34 @@ function openExperienceSidebar(feature) {
 
   if (sidebarPlace) {
     const placeName = feature.get("place_name");
-    const placeCategory = feature.get("place_category");
-    const placeCity = feature.get("place_city");
     const placeId = feature.get("place_id");
+    const placeNameEl = document.getElementById("sidebar-place-name");
 
-    if (placeName) {
-      sidebarPlace.textContent = "📍 " + placeName;
+    if (placeName && placeId) {
+      if (placeNameEl) {
+        placeNameEl.textContent = placeName;
+      }
       sidebarPlace.hidden = false;
-      sidebarPlace.dataset.placeId = placeId ? String(placeId) : "";
+      sidebarPlace.dataset.placeId = String(placeId);
+      sidebarPlace.dataset.placeName = placeName;
+      sidebarPlace.disabled = false;
+      sidebarPlace.classList.add("sidebar-place--link");
+    } else if (placeName) {
+      if (placeNameEl) {
+        placeNameEl.textContent = placeName;
+      }
+      sidebarPlace.hidden = false;
+      delete sidebarPlace.dataset.placeId;
+      delete sidebarPlace.dataset.placeName;
+      sidebarPlace.disabled = true;
+      sidebarPlace.classList.remove("sidebar-place--link");
     } else {
-      sidebarPlace.textContent = "";
+      if (placeNameEl) placeNameEl.textContent = "";
       sidebarPlace.hidden = true;
       delete sidebarPlace.dataset.placeId;
+      delete sidebarPlace.dataset.placeName;
+      sidebarPlace.disabled = true;
+      sidebarPlace.classList.remove("sidebar-place--link");
     }
   }
 
@@ -976,4 +1054,70 @@ if (submitCommentBtn) {
 }
 
 document.addEventListener("DOMContentLoaded", updateCommentAuthenticationUI);
+
+
+// ----------------------------------------------------------
+// PLACE LINK → place sidebar
+// ----------------------------------------------------------
+
+function openPlaceFromExperienceSidebar(placeId, placeName) {
+  if (!placeId || typeof openPlaceSidebar !== "function") {
+    return;
+  }
+
+  let placeFeature = null;
+
+  if (typeof placeSource !== "undefined" && placeSource) {
+    const features = placeSource.getFeatures();
+    for (let i = 0; i < features.length; i++) {
+      if (String(features[i].get("id")) === String(placeId)) {
+        placeFeature = features[i];
+        break;
+      }
+    }
+  }
+
+  if (!placeFeature) {
+    placeFeature = {
+      get: function (key) {
+        if (key === "id") return placeId;
+        if (key === "name") return placeName || "Place";
+        if (key === "experience_count") return null;
+        return null;
+      }
+    };
+  }
+
+  if (typeof closeSidebar === "function") {
+      closeSidebar();
+    }
+
+    if (typeof closeProfileSidebar === "function") {
+      closeProfileSidebar();
+    }
+
+    if (typeof focusPlaceOnMap === "function") {
+      focusPlaceOnMap(placeId);
+    }
+
+    openPlaceSidebar(placeFeature);
+  }
+
+if (typeof sidebarPlace !== "undefined" && sidebarPlace) {
+  sidebarPlace.addEventListener("click", function () {
+    const placeId = sidebarPlace.dataset.placeId;
+    const placeName =
+      sidebarPlace.dataset.placeName ||
+      (document.getElementById("sidebar-place-name") || {}).textContent ||
+      "";
+
+    if (!placeId) {
+      return;
+    }
+
+    openPlaceFromExperienceSidebar(placeId, placeName);
+  });
+}
+
+window.openPlaceFromExperienceSidebar = openPlaceFromExperienceSidebar;
 
