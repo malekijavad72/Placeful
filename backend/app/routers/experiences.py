@@ -74,7 +74,11 @@ UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
 )
 def get_experiences(
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
+    min_lng: float | None = Query(None),
+    min_lat: float | None = Query(None),
+    max_lng: float | None = Query(None),
+    max_lat: float | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_optional_current_user),
 ):
@@ -142,6 +146,72 @@ def get_experiences(
                 and_(
                     Experience.visibility == "followers",
                     Experience.user_id.in_(followed_ids),
+                ),
+            )
+        )
+
+        # Optional viewport filter (lon/lat, EPSG:4326)
+    if (
+        min_lng is not None
+        and min_lat is not None
+        and max_lng is not None
+        and max_lat is not None
+    ):
+        if not (
+            -180 <= min_lng <= 180
+            and -180 <= max_lng <= 180
+            and -90 <= min_lat <= 90
+            and -90 <= max_lat <= 90
+            and min_lng < max_lng
+            and min_lat < max_lat
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid bbox parameters.",
+            )
+
+        experiences = experiences.filter(
+            func.ST_Intersects(
+                Experience.location,
+                func.ST_MakeEnvelope(
+                    min_lng,
+                    min_lat,
+                    max_lng,
+                    max_lat,
+                    4326,
+                ),
+            )
+        )
+
+        # Optional viewport filter (lon/lat, EPSG:4326)
+    if (
+        min_lng is not None
+        and min_lat is not None
+        and max_lng is not None
+        and max_lat is not None
+    ):
+        if not (
+            -180 <= min_lng <= 180
+            and -180 <= max_lng <= 180
+            and -90 <= min_lat <= 90
+            and -90 <= max_lat <= 90
+            and min_lng < max_lng
+            and min_lat < max_lat
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid bbox parameters.",
+            )
+
+        experiences = experiences.filter(
+            func.ST_Intersects(
+                Experience.location,
+                func.ST_MakeEnvelope(
+                    min_lng,
+                    min_lat,
+                    max_lng,
+                    max_lat,
+                    4326,
                 ),
             )
         )

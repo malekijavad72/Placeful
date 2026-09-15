@@ -68,6 +68,9 @@ function openProfileSidebar() {
 function closeProfileSidebar() {
   if (!profileSidebar) return;
   profileSidebar.classList.remove("open");
+  if (profileSidebar && profileSidebar.contains(document.activeElement)) {
+    document.activeElement.blur();
+  }
   profileSidebar.setAttribute("aria-hidden", "true");
   document.body.classList.remove("profile-sidebar-open");
   if (psEditForm) psEditForm.hidden = true;
@@ -107,18 +110,23 @@ function emotionEmoji(slug) {
   return map[slug] || "📍";
 }
 
-function getExperiencesForUser(userId) {
-  const features = [];
-  if (typeof vectorSource === "undefined" || !vectorSource) {
-    return features;
+async function loadExperiencesForUser(userId) {
+  const response = await apiFetch(
+    API_BASE_URL +
+      "/users/" +
+      encodeURIComponent(userId) +
+      "/experiences?offset=0&limit=500"
+  );
+
+  if (!response.ok) {
+    throw new Error("Could not load user experiences");
   }
-  vectorSource.getFeatures().forEach(function (feature) {
-    const fid = feature.get("user_id");
-    if (fid && String(fid) === String(userId) && !feature.get("is_anonymous")) {
-      features.push(feature);
-    }
+
+  const geojson = await response.json();
+
+  return new ol.format.GeoJSON().readFeatures(geojson, {
+    featureProjection: "EPSG:3857",
   });
-  return features;
 }
 
 
@@ -180,7 +188,7 @@ function renderExperienceList(features) {
     btn.addEventListener("click", function () {
       const id = feature.get("id");
       if (typeof focusExperienceOnMap === "function") {
-        focusExperienceOnMap(id);
+        focusExperienceOnMap(id, feature);
       }
     });
 
@@ -588,7 +596,7 @@ async function openUserProfile(userId) {
 
     renderProfileUser(user);
 
-    profileUserExperiences = getExperiencesForUser(user.id);
+    profileUserExperiences = await loadExperiencesForUser(user.id);
     psExpCount.textContent = String(profileUserExperiences.length);
     renderExperienceList(profileUserExperiences);
     updateMiniMap(profileUserExperiences);

@@ -2477,14 +2477,6 @@ body.profile-sidebar-open .emotion-legend {
 }
 
 
-.place-experience-title {
-    margin-bottom: 5px;
-    color: var(--ink);
-    font-size: 14px;
-    font-weight: 700;
-}
-
-
 .place-experience-story {
     color: var(--ink-soft);
     font-size: 13px;
@@ -2512,11 +2504,21 @@ body.profile-sidebar-open .emotion-legend {
 }
 
 .place-experience-avatar {
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
     border-radius: 50%;
     object-fit: cover;
+    background-color: var(--accent-soft, #f3e4de);
+    background-size: cover;
+    background-position: center;
+    color: var(--accent-hover, #a84b32);
+    font-size: 16px;
+    font-weight: 750;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
 .place-experience-text {
@@ -2526,10 +2528,17 @@ body.profile-sidebar-open .emotion-legend {
 
 .place-experience-author {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 0;
-    margin-bottom: 3px;
-    line-height: 1.2;
+    gap: 6px;
+    margin-bottom: 4px;
+    line-height: 1.25;
+}
+
+.place-experience-display-name {
+    font-size: 13px;
+    font-weight: 750;
+    color: var(--ink);
 }
 
 .place-experience-username {
@@ -2537,9 +2546,23 @@ body.profile-sidebar-open .emotion-legend {
     padding: 0;
     margin: 0;
     background: none;
-    color: inherit;
-    font: inherit;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
+}
+
+.place-experience-username:hover {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+.place-experience-title {
+    margin-bottom: 4px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
 }
 
 .place-experience-username:hover {
@@ -2552,12 +2575,4 @@ body.profile-sidebar-open .emotion-legend {
 
 .place-experience-display-name {
     font-weight: 600;
-}
-
-.place-experience-title {
-    font-weight: 600;
-}
-
-.place-experience-story {
-    margin-top: 2px;
 }

@@ -30,13 +30,12 @@ function closeSidebar() {
 
   sidebar.classList.remove("open");
 
-  if (
-      sidebar.contains(
-          document.activeElement
-      )
-  ) {
-      document.activeElement.blur();
+  if (sidebar && sidebar.contains(document.activeElement)) {
+    document.activeElement.blur();
   }
+
+  sidebar.classList.remove("open");
+  sidebar.setAttribute("aria-hidden", "true");
 
   sidebar.setAttribute(
       "aria-hidden",
@@ -59,16 +58,27 @@ function closeSidebar() {
 }
 
 
-function focusExperienceOnMap(experienceId) {
-  if (!experienceId) return;
+function focusExperienceOnMap(experienceId, featureHint) {
+  if (!experienceId && !featureHint) return;
 
-  const features = vectorSource.getFeatures();
   let target = null;
-  for (let i = 0; i < features.length; i++) {
-    if (String(features[i].get("id")) === String(experienceId)) {
-      target = features[i];
-      break;
+
+  if (typeof vectorSource !== "undefined" && vectorSource) {
+    const features = vectorSource.getFeatures();
+    for (let i = 0; i < features.length; i++) {
+      if (
+        experienceId &&
+        String(features[i].get("id")) === String(experienceId)
+      ) {
+        target = features[i];
+        break;
+      }
     }
+  }
+
+  // Profile (and other) lists may have experiences outside the current map bbox
+  if (!target && featureHint) {
+    target = featureHint;
   }
 
   if (!target) return;

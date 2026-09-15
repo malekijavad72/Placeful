@@ -3,10 +3,6 @@
 // Depends on: api.js, ol
 // ============================================================
 
-// ============================================================
-// PLACEFUL — map + experience sidebar
-// ============================================================
-
 const map = new ol.Map({
   target: "full-map",
   layers: [
@@ -46,38 +42,14 @@ let currentPopupExperienceId = null;
 let currentCommentsExperienceId = null;
 let currentComments = [];
 
-// API_BASE_URL / auth helpers: defined in auth.js (load auth.js first)
-
-// Master client-side experience source.
-// Keep this source because experience-sidebar.js depends on it.
 const vectorSource = new ol.source.Vector();
-
-// Filtered source used by the visualization layers.
 const filteredSource = new ol.source.Vector();
-
-// ----------------------------------------------------------
-// PLACE SOURCE
-// ----------------------------------------------------------
-
 const placeSource = new ol.source.Vector();
-
-// ----------------------------------------------------------
-// MAP VISUALIZATION THRESHOLDS
-// ----------------------------------------------------------
 
 const HEATMAP_MAX_ZOOM = 9;
 const CLUSTER_MAX_ZOOM = 13;
-
-// ----------------------------------------------------------
-// PLACE VISIBILITY THRESHOLDS
-// ----------------------------------------------------------
-
 const PLACE_MEDIUM_ZOOM = 11;
 const PLACE_HIGH_ZOOM = 13;
-
-// ----------------------------------------------------------
-// INDIVIDUAL EXPERIENCE LAYER
-// ----------------------------------------------------------
 
 const vectorLayer = new ol.layer.Vector({
   source: filteredSource,
@@ -85,19 +57,11 @@ const vectorLayer = new ol.layer.Vector({
   zIndex: 30
 });
 
-// ----------------------------------------------------------
-// PLACE LAYER
-// ----------------------------------------------------------
-
 const placeLayer = new ol.layer.Vector({
   source: placeSource,
   style: getPlaceStyle,
   zIndex: 25
 });
-
-// ----------------------------------------------------------
-// CLUSTER LAYER
-// ----------------------------------------------------------
 
 const clusterSource = new ol.source.Cluster({
   distance: 45,
@@ -109,7 +73,6 @@ const clusterStyleCache = {};
 
 const clusterLayer = new ol.layer.Vector({
   source: clusterSource,
-
   style: function (feature) {
     const features = feature.get("features") || [];
     const size = features.length;
@@ -121,34 +84,25 @@ const clusterLayer = new ol.layer.Vector({
     let style = clusterStyleCache[size];
 
     if (!style) {
-      const radius = Math.min(
-        24,
-        10 + Math.log(size) * 5
-      );
+      const radius = Math.min(24, 10 + Math.log(size) * 5);
 
       style = new ol.style.Style({
         image: new ol.style.Circle({
           radius: radius,
-
           fill: new ol.style.Fill({
             color: "rgba(196, 92, 62, 0.90)"
           }),
-
           stroke: new ol.style.Stroke({
             color: "rgba(255, 255, 255, 0.95)",
             width: 2
           })
         }),
-
         text: new ol.style.Text({
           text: String(size),
-
           font: "600 12px Arial",
-
           fill: new ol.style.Fill({
             color: "#ffffff"
           }),
-
           stroke: new ol.style.Stroke({
             color: "rgba(0, 0, 0, 0.15)",
             width: 2
@@ -161,24 +115,16 @@ const clusterLayer = new ol.layer.Vector({
 
     return style;
   },
-
   zIndex: 20
 });
 
-// ----------------------------------------------------------
-// HEATMAP LAYER
-// ----------------------------------------------------------
-
 const heatmapLayer = new ol.layer.Heatmap({
   source: filteredSource,
-
   blur: 28,
   radius: 18,
-
   weight: function () {
     return 1;
   },
-
   gradient: [
     "rgba(196, 92, 62, 0)",
     "rgba(196, 92, 62, 0.20)",
@@ -186,7 +132,6 @@ const heatmapLayer = new ol.layer.Heatmap({
     "rgba(196, 92, 62, 0.68)",
     "rgba(168, 75, 50, 0.90)"
   ],
-
   zIndex: 10
 });
 
@@ -236,7 +181,6 @@ const mediaViewerNext = document.getElementById("media-viewer-next");
 let currentMediaItems = [];
 let currentMediaIndex = 0;
 
-
 const commentsList = document.getElementById("comments-list");
 const commentsCount = document.getElementById("comments-count");
 const commentInput = document.getElementById("comment-input");
@@ -255,25 +199,16 @@ const experienceForm = document.getElementById("experience-form");
 
 function getExperienceStyle(feature) {
   const isHovered = feature === hoveredExperience;
-  const isSelected =
-    feature.get("id") === currentPopupExperienceId;
+  const isSelected = feature.get("id") === currentPopupExperienceId;
 
-  const radius = isSelected
-    ? 9
-    : isHovered
-      ? 8
-      : 6;
+  const radius = isSelected ? 9 : isHovered ? 8 : 6;
 
   return new ol.style.Style({
     image: new ol.style.Circle({
       radius: radius,
-
       fill: new ol.style.Fill({
-        color: isSelected
-          ? "#c45c3e"
-          : "#ffffff"
+        color: isSelected ? "#c45c3e" : "#ffffff"
       }),
-
       stroke: new ol.style.Stroke({
         color: "#c45c3e",
         width: isSelected || isHovered ? 3 : 2
@@ -282,61 +217,35 @@ function getExperienceStyle(feature) {
   });
 }
 
-// ----------------------------------------------------------
-// PLACE STYLE
-// ----------------------------------------------------------
-
 function getPlaceStyle(feature) {
-  const experienceCount =
-    Number(feature.get("experience_count") || 0);
-
+  const experienceCount = Number(feature.get("experience_count") || 0);
   const zoom = map.getView().getZoom();
-
-  // --------------------------------------------------------
-  // Decide whether this Place should be visible
-  // --------------------------------------------------------
 
   if (zoom < PLACE_MEDIUM_ZOOM) {
     if (experienceCount < 5) {
       return null;
     }
-  }
-
-  else if (zoom < PLACE_HIGH_ZOOM) {
+  } else if (zoom < PLACE_HIGH_ZOOM) {
     if (experienceCount < 2) {
       return null;
     }
   }
 
-  // --------------------------------------------------------
-  // Marker size reflects number of experiences
-  // --------------------------------------------------------
-
   let radius = 7;
-
   if (experienceCount >= 10) {
     radius = 11;
-  }
-  else if (experienceCount >= 5) {
+  } else if (experienceCount >= 5) {
     radius = 9;
   }
-
-  // --------------------------------------------------------
-  // Place marker
-  // --------------------------------------------------------
 
   return new ol.style.Style({
     image: new ol.style.RegularShape({
       points: 4,
-
       radius: radius,
-
       angle: Math.PI / 4,
-
       fill: new ol.style.Fill({
         color: "#c45c3e"
       }),
-
       stroke: new ol.style.Stroke({
         color: "#ffffff",
         width: 2
@@ -346,14 +255,12 @@ function getPlaceStyle(feature) {
 }
 
 // ----------------------------------------------------------
-// LOAD EXPERIENCES  (auth helpers live in api.js)
+// LOAD
 // ----------------------------------------------------------
-
 
 function updateAddExperienceButton() {
   const btn = document.getElementById("add-experience-btn");
   if (!btn) return;
-  // Only signed-in users can create experiences
   btn.style.display = isLoggedIn() ? "" : "none";
 }
 
@@ -361,22 +268,31 @@ function updateFilteredSource() {
   filteredSource.clear();
 
   const features = vectorSource.getFeatures();
-
   const filteredFeatures = features.filter(function (feature) {
     if (activeEmotionFilter === "all") {
       return true;
     }
-
     return feature.get("emotion") === activeEmotionFilter;
   });
 
   filteredSource.addFeatures(filteredFeatures);
-
   clusterSource.refresh();
-
   heatmapLayer.changed();
   clusterLayer.changed();
   vectorLayer.changed();
+}
+
+function getMapBboxParams() {
+  const extent = map.getView().calculateExtent(map.getSize());
+  const bottomLeft = ol.proj.toLonLat([extent[0], extent[1]]);
+  const topRight = ol.proj.toLonLat([extent[2], extent[3]]);
+
+  return {
+    min_lng: bottomLeft[0],
+    min_lat: bottomLeft[1],
+    max_lng: topRight[0],
+    max_lat: topRight[1]
+  };
 }
 
 async function loadExperiences() {
@@ -385,10 +301,18 @@ async function loadExperiences() {
       experiencesError.style.display = "none";
     }
 
-    // Public experiences are visible to everyone (including guests).
-    // When logged in, apiFetch sends the token so private/followers show for the owner.
+    const bbox = getMapBboxParams();
+    const params = new URLSearchParams({
+      offset: "0",
+      limit: "500",
+      min_lng: String(bbox.min_lng),
+      min_lat: String(bbox.min_lat),
+      max_lng: String(bbox.max_lng),
+      max_lat: String(bbox.max_lat)
+    });
+
     const response = await apiFetch(
-      API_BASE_URL + "/experiences/?offset=0&limit=100"
+      API_BASE_URL + "/experiences/?" + params.toString()
     );
 
     if (!response.ok) {
@@ -412,56 +336,38 @@ async function loadExperiences() {
 }
 
 async function loadPlaces() {
+  try {
+    const response = await apiFetch(
+      API_BASE_URL + "/places/with-experiences"
+    );
 
-    try {
-
-        const response = await apiFetch(
-            API_BASE_URL + "/places/with-experiences"
-        );
-
-        if (!response.ok) {
-            throw new Error("HTTP error: " + response.status);
-        }
-
-        const places = await response.json();
-
-        const features = places.map(function (place) {
-
-            return new ol.Feature({
-                geometry: new ol.geom.Point(
-                    ol.proj.fromLonLat([
-                        place.longitude,
-                        place.latitude
-                    ])
-                ),
-
-                id: place.id,
-                name: place.name,
-                category: place.category,
-                address: place.address,
-                city: place.city,
-                country: place.country,
-                experience_count: place.experience_count  
-                
-            });
-
-        });
-
-        placeSource.clear();
-
-        placeSource.addFeatures(features);
-
-        placeLayer.changed();
-
-    } catch (error) {
-
-        console.error(
-            "Failed to load places:",
-            error
-        );
-
+    if (!response.ok) {
+      throw new Error("HTTP error: " + response.status);
     }
 
+    const places = await response.json();
+
+    const features = places.map(function (place) {
+      return new ol.Feature({
+        geometry: new ol.geom.Point(
+          ol.proj.fromLonLat([place.longitude, place.latitude])
+        ),
+        id: place.id,
+        name: place.name,
+        category: place.category,
+        address: place.address,
+        city: place.city,
+        country: place.country,
+        experience_count: place.experience_count
+      });
+    });
+
+    placeSource.clear();
+    placeSource.addFeatures(features);
+    placeLayer.changed();
+  } catch (error) {
+    console.error("Failed to load places:", error);
+  }
 }
 
 function updateMapVisualization() {
@@ -492,10 +398,22 @@ map.getView().on("change:resolution", function () {
 });
 
 updateMapVisualization();
-
 loadExperiences();
 loadPlaces();
 updateAddExperienceButton();
+
+let experiencesReloadTimer = null;
+
+function scheduleLoadExperiences() {
+  if (experiencesReloadTimer) {
+    clearTimeout(experiencesReloadTimer);
+  }
+  experiencesReloadTimer = setTimeout(function () {
+    loadExperiences();
+  }, 300);
+}
+
+map.on("moveend", scheduleLoadExperiences);
 
 function unlockMainMap() {
   const target = map.getTargetElement();
@@ -510,6 +428,58 @@ function unlockMainMap() {
 }
 
 // ----------------------------------------------------------
+// HIT TEST (shared by hover + click)
+// ----------------------------------------------------------
+
+function hitTestMapFeature(pixel) {
+  return map.forEachFeatureAtPixel(
+    pixel,
+    function (f, layer) {
+      if (layer === placeLayer) {
+        return { type: "place", feature: f };
+      }
+
+      if (layer === vectorLayer) {
+        return { type: "experience", feature: f };
+      }
+
+      if (layer === clusterLayer) {
+        const clusteredFeatures = f.get("features") || [];
+
+        if (!clusteredFeatures.length) {
+          return null;
+        }
+
+        if (clusteredFeatures.length === 1) {
+          return {
+            type: "experience",
+            feature: clusteredFeatures[0]
+          };
+        }
+
+        return {
+          type: "cluster",
+          feature: f,
+          features: clusteredFeatures
+        };
+      }
+
+      return null;
+    },
+    {
+      layerFilter: function (layer) {
+        return (
+          layer === placeLayer ||
+          layer === vectorLayer ||
+          layer === clusterLayer
+        );
+      },
+      hitTolerance: 8
+    }
+  );
+}
+
+// ----------------------------------------------------------
 // MAP INTERACTIONS
 // ----------------------------------------------------------
 
@@ -519,186 +489,105 @@ map.on("pointermove", function (event) {
     if (hoveredExperience !== null) {
       hoveredExperience = null;
       vectorLayer.changed();
+      clusterLayer.changed();
     }
     return;
   }
 
-  const feature = map.forEachFeatureAtPixel(
-  event.pixel,
-  function (f, layer) {
+  const hit = hitTestMapFeature(event.pixel);
+  map.getTargetElement().style.cursor = hit ? "pointer" : "";
 
-    if (layer === placeLayer) {
-      return {
-        type: "place",
-        feature: f
-      };
+  if (!hit || hit.type !== "experience") {
+    if (hoveredExperience !== null) {
+      hoveredExperience = null;
+      vectorLayer.changed();
+      clusterLayer.changed();
     }
-
-    if (layer === vectorLayer) {
-      return {
-        type: "experience",
-        feature: f
-      };
-    }
-
-    if (layer === clusterLayer) {
-      const clusteredFeatures = f.get("features");
-
-      if (
-        clusteredFeatures &&
-        clusteredFeatures.length === 1
-      ) {
-        return {
-          type: "experience",
-          feature: clusteredFeatures[0]
-        };
-      }
-
-      return null;
-    }
-
-    return null;
-  }
-);
-
-  map.getTargetElement().style.cursor = feature ? "pointer" : "";
-
-  if (feature === hoveredExperience) {
     return;
   }
 
-  if (feature && clusterLayer.getVisible()) {
-    hoveredExperience = null;
-    map.getTargetElement().style.cursor = "pointer";
+  if (hit.feature === hoveredExperience) {
     return;
   }
 
-  hoveredExperience = feature || null;
+  hoveredExperience = hit.feature;
   vectorLayer.changed();
+  clusterLayer.changed();
 });
 
 map.on("singleclick", function (event) {
-
   if (isSelectingLocation) {
     selectExperienceLocation(event.coordinate);
     return;
   }
 
-  let feature = map.forEachFeatureAtPixel(
-    event.pixel,
-    function (f, layer) {
+  const feature = hitTestMapFeature(event.pixel);
 
-      if (layer === placeLayer) {
-        return {
-          type: "place",
-          feature: f
-        };
-      }
-
-      return null;
-    }
-  );
-
-  if (!feature) {
-    feature = map.forEachFeatureAtPixel(
-      event.pixel,
-      function (f, layer) {
-
-        if (layer === vectorLayer) {
-          return {
-            type: "experience",
-            feature: f
-          };
-        }
-
-        if (layer === clusterLayer) {
-
-          const clusteredFeatures = f.get("features");
-
-          if (
-            clusteredFeatures &&
-            clusteredFeatures.length === 1
-          ) {
-            return {
-              type: "experience",
-              feature: clusteredFeatures[0]
-            };
-          }
-
-          return null;
-        }
-
-        return null;
-      }
-    );
-  }
-
+  // Place
   if (feature && feature.type === "place") {
-
+    if (typeof closeSidebar === "function") {
+      closeSidebar();
+    }
     if (typeof closeProfileSidebar === "function") {
       closeProfileSidebar();
     }
-
     if (typeof openPlaceSidebar === "function") {
       openPlaceSidebar(feature.feature);
     }
-
     unlockMainMap();
-
     return;
   }
-  
-  // ------------------------------------------
-  // NOTHING CLICKABLE
-  // ------------------------------------------
-  if (!feature) {
-    closeSidebar();
 
-    if (typeof closePlaceSidebar === "function") {
-        closePlaceSidebar();
+  // Cluster → zoom to members
+  if (feature && feature.type === "cluster") {
+    const extent = ol.extent.createEmpty();
+    const members = feature.features || [];
+
+    members.forEach(function (member) {
+      const geometry = member.getGeometry();
+      if (geometry) {
+        ol.extent.extend(extent, geometry.getExtent());
+      }
+    });
+
+    if (!ol.extent.isEmpty(extent)) {
+      map.getView().fit(extent, {
+        padding: [80, 80, 80, 80],
+        maxZoom: 16,
+        duration: 350,
+        callback: function () {
+          unlockMainMap();
+        }
+      });
     }
+    return;
+  }
 
+  // Empty map
+  if (!feature) {
+    if (typeof closeSidebar === "function") {
+      closeSidebar();
+    }
+    if (typeof closePlaceSidebar === "function") {
+      closePlaceSidebar();
+    }
     if (typeof closeProfileSidebar === "function") {
       closeProfileSidebar();
     }
-
     return;
   }
 
-
-  // ------------------------------------------
-  // PLACE
-  // ------------------------------------------
-
-  if (feature.type === "place") {
-
-      if (typeof closeSidebar === "function") {
-          closeSidebar();
-      }
-
-      if (typeof closeProfileSidebar === "function") {
-          closeProfileSidebar();
-      }
-
-      if (typeof openPlaceSidebar === "function") {
-          openPlaceSidebar(feature.feature);
-      }
-
-      return;
-  }
-
-  // ------------------------------------------
-  // EXPERIENCE POINT
-  // ------------------------------------------
-  if (typeof closeProfileSidebar === "function") {
-    closeProfileSidebar();
-  }
-
-  if (typeof openExperienceSidebar === "function") {
-    openExperienceSidebar(feature.feature);
-  }
-
-  if (typeof unlockMainMap === "function") {
+  // Single experience
+  if (feature.type === "experience") {
+    if (typeof closeProfileSidebar === "function") {
+      closeProfileSidebar();
+    }
+    if (typeof closePlaceSidebar === "function") {
+      closePlaceSidebar();
+    }
+    if (typeof openExperienceSidebar === "function") {
+      openExperienceSidebar(feature.feature);
+    }
     unlockMainMap();
   }
 });
@@ -729,7 +618,9 @@ legendItems.forEach(function (item) {
     });
 
     updateFilteredSource();
-    closeSidebar();
+    if (typeof closeSidebar === "function") {
+      closeSidebar();
+    }
   });
 });
 
@@ -760,20 +651,27 @@ document.addEventListener("keydown", function (event) {
     return;
   }
 
-  if (experienceFormOverlay && experienceFormOverlay.classList.contains("active")) {
+  if (
+    experienceFormOverlay &&
+    experienceFormOverlay.classList.contains("active")
+  ) {
     closeExperienceFormAndReset();
     return;
   }
 
   if (isSelectingLocation) {
     isSelectingLocation = false;
-    addExperienceBtn.innerHTML =
-      '<span class="add-experience-icon">+</span><span>Add experience</span>';
+    if (addExperienceBtn) {
+      addExperienceBtn.innerHTML =
+        '<span class="add-experience-icon">+</span><span>Add experience</span>';
+    }
     map.getTargetElement().style.cursor = "";
     return;
   }
 
-  closeSidebar();
+  if (typeof closeSidebar === "function") {
+    closeSidebar();
+  }
 });
 
 window.addEventListener("resize", function () {

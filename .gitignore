@@ -89,3 +89,6 @@ htmlcov/
 backend/create_test_user.py
 
 backend/uploads/
+
+frontend.zip
+*.zip
