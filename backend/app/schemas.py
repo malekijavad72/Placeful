@@ -184,6 +184,10 @@ class CommentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    username: str | None = None
+    display_name: str | None = None
+    profile_image_url: str | None = None
+
     model_config = ConfigDict(
         from_attributes=True
     )

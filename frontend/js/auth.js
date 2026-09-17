@@ -313,7 +313,11 @@ function setAvatarElement(el, user) {
   const initial = name.charAt(0).toUpperCase();
 
   if (user.profile_image_url) {
-    el.style.backgroundImage = 'url("' + user.profile_image_url + '")';
+    const src =
+      typeof resolveProfileImageUrl === "function"
+        ? resolveProfileImageUrl(user.profile_image_url)
+        : user.profile_image_url;
+    el.style.backgroundImage = 'url("' + src + '")';
     el.textContent = "";
   } else {
     el.style.backgroundImage = "";

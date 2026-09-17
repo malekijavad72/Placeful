@@ -700,16 +700,36 @@ body.sidebar-open .emotion-legend {
 
 .comment-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
 }
 
-.comment-author {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ink);
+.comment-author-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background-color: var(--accent-soft, #f3e4de);
+  background-size: cover;
+  background-position: center;
+  color: var(--accent-hover, #a84b32);
+  font-size: 14px;
+  font-weight: 750;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 .comment-date {
@@ -725,6 +745,77 @@ body.sidebar-open .emotion-legend {
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.comment-content--clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.comment-content--expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.comment-read-more {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent, #c45c3e);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.comment-read-more:hover {
+  text-decoration: underline;
+}
+
+
+.comment-author-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+
+.comment-display-name,
+.comment-username {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.comment-display-name {
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--ink);
+}
+
+.comment-username {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.comment-display-name:hover,
+.comment-username:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.comment-content-wrap {
+  margin-top: 2px;
 }
 
 .comment-actions {
@@ -1846,8 +1937,8 @@ body.profile-sidebar-open .emotion-legend {
 }
 
 .header-avatar {
-  width: 36px;
-  height: 36px;
+  width: 45px;
+  height: 45px;
   border-radius: 50%;
   display: flex;
   align-items: center;

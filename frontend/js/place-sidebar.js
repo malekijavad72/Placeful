@@ -128,7 +128,11 @@ function createPlaceExperienceItem(feature) {
   avatar.setAttribute("aria-hidden", "true");
 
   if (profileImageUrl) {
-    avatar.style.backgroundImage = 'url("' + profileImageUrl + '")';
+    const src =
+      typeof resolveProfileImageUrl === "function"
+        ? resolveProfileImageUrl(profileImageUrl)
+        : profileImageUrl;
+    avatar.style.backgroundImage = 'url("' + src + '")';
     avatar.textContent = "";
   } else {
     avatar.textContent = (displayName.charAt(0) || "?").toUpperCase();

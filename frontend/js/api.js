@@ -165,3 +165,20 @@ function mediaUrl(path) {
   if (value.startsWith("/")) return API_ORIGIN + value;
   return API_ORIGIN + "/uploads/" + value;
 }
+
+function resolveProfileImageUrl(path) {
+  if (!path) return "";
+  if (typeof mediaUrl === "function") {
+    return mediaUrl(path);
+  }
+  const value = String(path);
+  if (value.startsWith("http") || value.startsWith("data:")) {
+    return value;
+  }
+  if (value.startsWith("/")) {
+    return API_ORIGIN + value;
+  }
+  return API_ORIGIN + "/uploads/" + value;
+}
+
+window.resolveProfileImageUrl = resolveProfileImageUrl;

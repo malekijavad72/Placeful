@@ -531,7 +531,11 @@ function renderProfileUser(user) {
   psBio.textContent = user.bio || "";
 
   if (user.profile_image_url) {
-    psAvatar.style.backgroundImage = 'url("' + user.profile_image_url + '")';
+    const avatarSrc =
+      typeof mediaUrl === "function"
+        ? mediaUrl(user.profile_image_url)
+        : user.profile_image_url;
+    psAvatar.style.backgroundImage = avatarSrc ? 'url("' + avatarSrc + '")' : "";
     psAvatar.textContent = "";
   } else {
     psAvatar.style.backgroundImage = "";
@@ -650,8 +654,12 @@ async function renderFollowList(kind) {
       row.className = "ps-follow-row";
       const label = user.display_name || user.username || "User";
       const initial = (label.charAt(0) || "?").toUpperCase();
-      const img = user.profile_image_url
-        ? '<span class="ps-follow-avatar" style="background-image:url(\'' + user.profile_image_url + '\')"></span>'
+      const avatarUrl =
+        user.profile_image_url && typeof resolveProfileImageUrl === "function"
+          ? resolveProfileImageUrl(user.profile_image_url)
+          : user.profile_image_url || "";
+      const img = avatarUrl
+        ? '<span class="ps-follow-avatar" style="background-image:url(\'' + avatarUrl + '\')"></span>'
         : '<span class="ps-follow-avatar">' + initial + "</span>";
       row.innerHTML =
         img +
@@ -741,15 +749,55 @@ if (psEditCancel) {
 if (psEditForm) {
   psEditForm.addEventListener("submit", async function (event) {
     event.preventDefault();
-    const payload = {
-      display_name:
-        document.getElementById("ps-edit-display-name").value.trim() || null,
-      bio: document.getElementById("ps-edit-bio").value.trim() || null,
-      profile_image_url:
-        document.getElementById("ps-edit-image").value.trim() || null
-    };
+        const displayName =
+      document.getElementById("ps-edit-display-name").value.trim() || null;
+    const bio =
+      document.getElementById("ps-edit-bio").value.trim() || null;
+    const imageUrlInput =
+      document.getElementById("ps-edit-image").value.trim() || null;
+    const imageFileInput = document.getElementById("ps-edit-image-file");
+    const imageFile =
+      imageFileInput && imageFileInput.files && imageFileInput.files[0]
+        ? imageFileInput.files[0]
+        : null;
+
     psEditStatus.textContent = "Saving…";
+
     try {
+      let profileImageUrl = imageUrlInput;
+
+      // Prefer local file if the user chose one
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append("file", imageFile);
+
+        const uploadRes = await authFetch("/users/me/avatar", {
+          method: "POST",
+          body: formData
+          // do NOT set Content-Type; browser sets multipart boundary
+        });
+
+        const uploadData = await uploadRes.json().catch(function () {
+          return {};
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error(
+            typeof uploadData.detail === "string"
+              ? uploadData.detail
+              : "Could not upload photo"
+          );
+        }
+
+        profileImageUrl = uploadData.profile_image_url || profileImageUrl;
+      }
+
+      const payload = {
+        display_name: displayName,
+        bio: bio,
+        profile_image_url: profileImageUrl
+      };
+
       const res = await authFetch("/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -766,6 +814,9 @@ if (psEditForm) {
       renderProfileUser(data);
       psEditForm.hidden = true;
       psEditStatus.textContent = "";
+      if (imageFileInput) {
+        imageFileInput.value = "";
+      }
       if (data.username) {
         localStorage.setItem("logged_in_username", data.username);
       }

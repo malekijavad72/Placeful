@@ -1078,7 +1078,26 @@ def create_comment(
     db.commit()
     db.refresh(new_comment)
 
-    return new_comment
+    return serialize_comment(new_comment, current_user)
+
+
+def serialize_comment(comment: Comment, user: User | None = None) -> dict:
+    author = user
+    if author is None and getattr(comment, "user", None) is not None:
+        author = comment.user
+
+    return {
+        "id": comment.id,
+        "user_id": comment.user_id,
+        "experience_id": comment.experience_id,
+        "parent_comment_id": comment.parent_comment_id,
+        "content": comment.content,
+        "created_at": comment.created_at,
+        "updated_at": comment.updated_at,
+        "username": author.username if author else None,
+        "display_name": author.display_name if author else None,
+        "profile_image_url": author.profile_image_url if author else None,
+    }
 
 
 # ============================================================
@@ -1117,18 +1136,18 @@ def get_comments(
     # Get comments
     # --------------------------------------------------------
 
-    comments = (
-        db.query(Comment)
-        .filter(
-            Comment.experience_id == experience_id
-        )
-        .order_by(
-            Comment.created_at.asc()
-        )
+    rows = (
+        db.query(Comment, User)
+        .outerjoin(User, Comment.user_id == User.id)
+        .filter(Comment.experience_id == experience_id)
+        .order_by(Comment.created_at.asc())
         .all()
     )
 
-    return comments
+    return [
+        serialize_comment(comment, user)
+        for comment, user in rows
+    ]
 
 
 # ============================================================
@@ -1187,7 +1206,12 @@ def update_comment(
     db.commit()
     db.refresh(existing_comment)
 
-    return existing_comment
+    author = (
+        db.query(User)
+        .filter(User.id == existing_comment.user_id)
+        .first()
+    )
+    return serialize_comment(existing_comment, author)
 
 
 # ============================================================

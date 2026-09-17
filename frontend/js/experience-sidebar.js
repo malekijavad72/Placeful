@@ -245,7 +245,11 @@ function openExperienceSidebar(feature) {
       sidebarCreator.hidden = false;
 
       if (profileImageUrl) {
-        sidebarCreatorAvatar.style.backgroundImage = 'url("' + profileImageUrl + '")';
+        const src =
+          typeof resolveProfileImageUrl === "function"
+            ? resolveProfileImageUrl(profileImageUrl)
+            : profileImageUrl;
+        sidebarCreatorAvatar.style.backgroundImage = 'url("' + src + '")';
         sidebarCreatorAvatar.textContent = "";
       } else {
         sidebarCreatorAvatar.style.backgroundImage = "";
@@ -730,12 +734,68 @@ function renderComment(comment, repliesMap, depth) {
   }
   commentElement.dataset.commentId = comment.id;
 
-  const header = document.createElement("div");
+    const header = document.createElement("div");
   header.className = "comment-header";
 
-  const author = document.createElement("span");
-  author.className = "comment-author";
-  author.textContent = "User " + String(comment.user_id).substring(0, 8);
+  const authorBlock = document.createElement("div");
+  authorBlock.className = "comment-author-block";
+
+  const displayName =
+    comment.display_name || comment.username || "User";
+  const username = comment.username || "";
+  const profileImageUrl = comment.profile_image_url || "";
+  const userId = comment.user_id;
+
+  const avatarBtn = document.createElement("button");
+  avatarBtn.type = "button";
+  avatarBtn.className = "comment-avatar";
+  avatarBtn.setAttribute("aria-label", "View profile");
+
+  if (profileImageUrl) {
+    const src =
+      typeof resolveProfileImageUrl === "function"
+        ? resolveProfileImageUrl(profileImageUrl)
+        : profileImageUrl;
+    avatarBtn.style.backgroundImage = 'url("' + src + '")';
+    avatarBtn.textContent = "";
+  } else {
+    avatarBtn.textContent = (displayName.charAt(0) || "?").toUpperCase();
+  }
+
+  function openCommenterProfile(event) {
+    event.stopPropagation();
+    if (!userId) return;
+    if (typeof closeSidebar === "function") {
+      closeSidebar();
+    }
+    if (typeof openUserProfile === "function") {
+      openUserProfile(userId);
+    }
+  }
+
+  avatarBtn.addEventListener("click", openCommenterProfile);
+
+  const authorText = document.createElement("div");
+  authorText.className = "comment-author-text";
+
+  const displayNameBtn = document.createElement("button");
+  displayNameBtn.type = "button";
+  displayNameBtn.className = "comment-display-name";
+  displayNameBtn.textContent = displayName;
+  displayNameBtn.addEventListener("click", openCommenterProfile);
+  authorText.appendChild(displayNameBtn);
+
+  if (username) {
+    const usernameBtn = document.createElement("button");
+    usernameBtn.type = "button";
+    usernameBtn.className = "comment-username";
+    usernameBtn.textContent = "@" + username;
+    usernameBtn.addEventListener("click", openCommenterProfile);
+    authorText.appendChild(usernameBtn);
+  }
+
+  authorBlock.appendChild(avatarBtn);
+  authorBlock.appendChild(authorText);
 
   const date = document.createElement("span");
   date.className = "comment-date";
@@ -751,12 +811,35 @@ function renderComment(comment, repliesMap, depth) {
     ? "Edited · " + formatCommentDate(comment.updated_at)
     : formatCommentDate(comment.created_at);
 
-  header.appendChild(author);
+  header.appendChild(authorBlock);
   header.appendChild(date);
 
+  const contentWrap = document.createElement("div");
+  contentWrap.className = "comment-content-wrap";
+
   const content = document.createElement("p");
-  content.className = "comment-content";
+  content.className = "comment-content comment-content--clamped";
   content.textContent = comment.content;
+  contentWrap.appendChild(content);
+
+  requestAnimationFrame(function () {
+    if (content.scrollHeight > content.clientHeight + 1) {
+      const moreBtn = document.createElement("button");
+      moreBtn.type = "button";
+      moreBtn.className = "comment-read-more";
+      moreBtn.textContent = "Read more";
+
+      moreBtn.addEventListener("click", function () {
+        const expanded = content.classList.toggle(
+          "comment-content--expanded"
+        );
+        content.classList.toggle("comment-content--clamped", !expanded);
+        moreBtn.textContent = expanded ? "Show less" : "Read more";
+      });
+
+      contentWrap.appendChild(moreBtn);
+    }
+  });
 
   const actions = document.createElement("div");
   actions.className = "comment-actions";
@@ -794,7 +877,7 @@ function renderComment(comment, repliesMap, depth) {
   const editForm = createEditCommentForm(comment);
 
   commentElement.appendChild(header);
-  commentElement.appendChild(content);
+  commentElement.appendChild(contentWrap);
   commentElement.appendChild(actions);
   commentElement.appendChild(replyForm);
   commentElement.appendChild(editForm);

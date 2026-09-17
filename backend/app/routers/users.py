@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from pathlib import Path
 from uuid import UUID
+import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, and_
 import json
@@ -211,6 +213,111 @@ def update_my_profile(
 
     return current_user
 
+
+# ----------------------------------------------------------
+# PROFILE AVATAR UPLOAD
+# ----------------------------------------------------------
+
+PROFILE_UPLOAD_DIR = Path("uploads/profiles")
+ALLOWED_PROFILE_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
+MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+@router.post("/me/avatar", response_model=UserResponse)
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if file.content_type not in ALLOWED_PROFILE_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPEG, PNG, and WebP images are allowed",
+        )
+
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="File must have a filename",
+        )
+
+    extension_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
+    extension = extension_map[file.content_type]
+
+    user_dir = PROFILE_UPLOAD_DIR / str(current_user.id)
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    generated_filename = f"{uuid.uuid4()}{extension}"
+    file_path = user_dir / generated_filename
+
+    CHUNK = 1024 * 1024
+    size = 0
+    first = b""
+
+    try:
+        with open(file_path, "wb") as buffer:
+            while True:
+                chunk = await file.read(CHUNK)
+                if not chunk:
+                    break
+                if not first:
+                    first = chunk[:64]
+                size += len(chunk)
+                if size > MAX_PROFILE_IMAGE_SIZE:
+                    buffer.close()
+                    if file_path.exists():
+                        file_path.unlink()
+                    raise HTTPException(
+                        status_code=413,
+                        detail="File size cannot exceed 5 MB",
+                    )
+                buffer.write(chunk)
+    except HTTPException:
+        raise
+    except Exception:
+        if file_path.exists():
+            file_path.unlink()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save image",
+        )
+
+    valid = False
+    if file.content_type == "image/jpeg" and first.startswith(b"\xff\xd8\xff"):
+        valid = True
+    elif file.content_type == "image/png" and first.startswith(b"\x89PNG\r\n\x1a\n"):
+        valid = True
+    elif (
+        file.content_type == "image/webp"
+        and len(first) >= 12
+        and first.startswith(b"RIFF")
+        and first[8:12] == b"WEBP"
+    ):
+        valid = True
+
+    if not valid or size == 0:
+        if file_path.exists():
+            file_path.unlink()
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded file is not a valid JPEG, PNG, or WebP image",
+        )
+
+    # Stored relative to uploads/; frontend mediaUrl() can resolve it
+    storage_key = f"profiles/{current_user.id}/{generated_filename}"
+    current_user.profile_image_url = storage_key
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
 
 # ============================================================
 # FOLLOW USER
