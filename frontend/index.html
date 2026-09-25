@@ -23,6 +23,11 @@
     >
 
     <link
+        rel="stylesheet"
+        href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css"
+    >
+
+    <link
         rel="preconnect"
         href="https://fonts.googleapis.com"
     >
@@ -184,8 +189,9 @@
         >
 
             <div id="full-map-container">
-
+                <div id="maplibre-map"></div>
                 <div id="full-map"></div>
+                
 
 
                 <div
@@ -1506,6 +1512,7 @@
          SCRIPTS
          ========================================================= -->
 
+    
     <script
         src="https://cdn.jsdelivr.net/npm/ol@latest/dist/ol.js"
     ></script>
@@ -1515,6 +1522,10 @@
     <script src="js/auth.js"></script>
 
     <script src="js/map.js"></script>
+    <script
+        type="module"
+        src="js/maplibre-map.js"
+    ></script>
 
     <script src="js/place-sidebar.js"></script>
 
