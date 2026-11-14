@@ -38,6 +38,15 @@ let hoveredExperience = null;
 let isSelectingLocation = false;
 let selectedLongitude = null;
 let selectedLatitude = null;
+window.localeifyIsSelectingLocation = function () {
+  return isSelectingLocation;
+};
+
+window.localeifySelectExperienceLocation = function (longitude, latitude) {
+  selectExperienceLocation(
+    ol.proj.fromLonLat([longitude, latitude])
+  );
+};
 let currentPopupExperienceId = null;
 let currentCommentsExperienceId = null;
 let currentComments = [];

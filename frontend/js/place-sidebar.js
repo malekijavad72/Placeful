@@ -290,7 +290,22 @@ async function loadPlaceExperiences(placeId) {
 if (placeSidebarClose) {
   placeSidebarClose.addEventListener("click", closePlaceSidebar);
 }
+document.addEventListener(
+  "keydown",
+  function (event) {
 
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    if (
+      placeSidebar &&
+      placeSidebar.classList.contains("open")
+    ) {
+      closePlaceSidebar();
+    }
+  }
+);
 // ----------------------------------------------------------
 // GLOBAL
 // ----------------------------------------------------------

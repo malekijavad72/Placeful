@@ -1,21 +1,28 @@
 // ============================================================
-// LOCALEIFY — MapLibre map
-// Step 1: MapLibre basemap + Localeify experiences
+// Localeify - MapLibre map
+// ============================================================
 //
-// Keeps the existing OpenLayers map running underneath during
-// the migration.
+// Responsibilities:
+//   1. MapLibre + OpenFreeMap basemap
+//   2. Generic OpenFreeMap feature selection
+//   3. Localeify experiences
+//   4. Experience heatmap
+//   5. Experience clustering
+//   6. Individual experience markers
+//   7. Localeify places
+//   8. Selected experience highlighting
+//   9. Add Experience location selection bridge
 //
-// Depends on:
-//   - api.js
+// OpenLayers remains underneath during migration.
 // ============================================================
 
 import * as maplibregl
     from "https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs";
 
 
-// ------------------------------------------------------------
+// ============================================================
 // MAP
-// ------------------------------------------------------------
+// ============================================================
 
 const maplibreMap = new maplibregl.Map({
     container: "maplibre-map",
@@ -28,53 +35,42 @@ const maplibreMap = new maplibregl.Map({
 });
 
 
-// Make the MapLibre map available globally for debugging and
-// for later migration steps.
+// Keep compatibility with old Placeful naming
 window.localeifyMapLibre = maplibreMap;
 window.placefulMapLibre = maplibreMap;
 
 
-// ------------------------------------------------------------
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+const HEATMAP_MAX_ZOOM = 9;
+const CLUSTER_MAX_ZOOM = 13;
+
+const PLACE_MEDIUM_ZOOM = 11;
+const PLACE_HIGH_ZOOM = 13;
+
+
+// ============================================================
 // STATE
-// ------------------------------------------------------------
+// ============================================================
 
 let selectedFeature = null;
 
-let experiencesReloadTimer = null;
+let hoveredExperienceId = null;
 
-let activeEmotionFilter = "all";
+let localeifyExperiencesGeoJSON = null;
 
+let localeifyPlaces = [];
 
-// ------------------------------------------------------------
-// TEMPORARY FEATURE INFO PANEL
-// ------------------------------------------------------------
+let currentEmotionFilter = null;
 
-const featureInfo = document.createElement("div");
-
-featureInfo.id = "maplibre-feature-info";
-
-featureInfo.style.position = "absolute";
-featureInfo.style.top = "12px";
-featureInfo.style.right = "12px";
-featureInfo.style.zIndex = "1000";
-featureInfo.style.maxWidth = "360px";
-featureInfo.style.maxHeight = "70vh";
-featureInfo.style.overflow = "auto";
-featureInfo.style.padding = "12px";
-featureInfo.style.background = "rgba(255,255,255,0.96)";
-featureInfo.style.borderRadius = "8px";
-featureInfo.style.boxShadow = "0 2px 10px rgba(0,0,0,0.25)";
-featureInfo.style.fontFamily = "Arial, sans-serif";
-featureInfo.style.fontSize = "13px";
-featureInfo.style.lineHeight = "1.4";
-featureInfo.style.display = "none";
-
-document.getElementById("full-map-container").appendChild(featureInfo);
+let mapLoaded = false;
 
 
-// ------------------------------------------------------------
-// GEOJSON SOURCE — EXPERIENCE DATA
-// ------------------------------------------------------------
+// ============================================================
+// HELPERS
+// ============================================================
 
 function createEmptyFeatureCollection() {
     return {
@@ -84,245 +80,1676 @@ function createEmptyFeatureCollection() {
 }
 
 
-// ------------------------------------------------------------
-// MAPLIBRE LOAD
-// ------------------------------------------------------------
-
-maplibreMap.on("load", function () {
-
-    console.log("MapLibre loaded.");
-
-    // --------------------------------------------------------
-    // EXPERIENCE SOURCE
-    // --------------------------------------------------------
-
-    maplibreMap.addSource("localeify-experiences", {
-        type: "geojson",
-
-        data: createEmptyFeatureCollection()
-    });
-
-
-    // --------------------------------------------------------
-    // EXPERIENCE LAYER
-    // --------------------------------------------------------
-
-    maplibreMap.addLayer({
-        id: "localeify-experiences",
-
-        type: "circle",
-
-        source: "localeify-experiences",
-
-        paint: {
-
-            "circle-radius": 6,
-
-            "circle-color": "#ffffff",
-
-            "circle-stroke-color": "#c45c3e",
-
-            "circle-stroke-width": 2
-        }
-    });
-
-    // ----------------------------------------------------
-// Localeify places
-// ----------------------------------------------------
-
-maplibreMap.addSource("localeify-places", {
-    type: "geojson",
-    data: {
-        type: "FeatureCollection",
-        features: []
+function safeString(value) {
+    if (value === null || value === undefined) {
+        return "";
     }
-});
 
-maplibreMap.addLayer({
-    id: "localeify-places",
-    type: "circle",
-    source: "localeify-places",
-
-    paint: {
-        "circle-radius": [
-            "interpolate",
-            ["linear"],
-            ["get", "experience_count"],
-
-            0, 7,
-            5, 9,
-            10, 11
-        ],
-
-        "circle-color": "#c45c3e",
-
-        "circle-stroke-color": "#ffffff",
-
-        "circle-stroke-width": 2
-    }
-});
-
-
-    // --------------------------------------------------------
-    // SELECTED EXPERIENCE LAYER
-    //
-    // This is separate from the general geographic-feature
-    // selection system below.
-    // --------------------------------------------------------
-
-    maplibreMap.addLayer({
-        id: "localeify-selected-experience",
-
-        type: "circle",
-
-        source: "localeify-experiences",
-
-        filter: [
-            "==",
-            ["get", "id"],
-            ""
-        ],
-
-        paint: {
-
-            "circle-radius": 9,
-
-            "circle-color": "#c45c3e",
-
-            "circle-stroke-color": "#ffffff",
-
-            "circle-stroke-width": 2
-        }
-    });
-
-
-    // --------------------------------------------------------
-    // LOAD INITIAL EXPERIENCES
-    // --------------------------------------------------------
-
-    loadExperiences();
-    loadLocaleifyPlaces();
-
-
-    // --------------------------------------------------------
-    // MAP MOVEMENT
-    // --------------------------------------------------------
-
-    maplibreMap.on("moveend", scheduleLoadExperiences);
-
-
-    console.log(
-        "Localeify experience source and layer initialized."
-    );
-});
-
-
-// ============================================================
-// EXPERIENCE API LOADING
-// ============================================================
-
-function getMapBboxParams() {
-
-    const bounds = maplibreMap.getBounds();
-
-    return {
-        min_lng: bounds.getWest(),
-        min_lat: bounds.getSouth(),
-        max_lng: bounds.getEast(),
-        max_lat: bounds.getNorth()
-    };
+    return String(value);
 }
 
+
+// ============================================================
+// GENERIC MAP FEATURE SELECTION
+// ============================================================
+
+function clearSelectedFeature() {
+
+    selectedFeature = null;
+
+    const source = maplibreMap.getSource(
+        "localeify-selection"
+    );
+
+    if (source) {
+
+        source.setData(
+            createEmptyFeatureCollection()
+        );
+    }
+
+    const infoPanel =
+        document.getElementById(
+            "maplibre-feature-info"
+        );
+
+    if (infoPanel) {
+
+        infoPanel.remove();
+    }
+}
+
+
+function getFeatureName(feature) {
+
+    if (!feature || !feature.properties) {
+        return "Unnamed feature";
+    }
+
+    const p = feature.properties;
+
+    const possibleNames = [
+        p.name,
+        p.name_en,
+        p.name_fa,
+        p["name:en"],
+        p["name:fa"],
+        p["name:ar"],
+        p.ref,
+        p.type
+    ];
+
+    for (const value of possibleNames) {
+
+        if (
+            value !== null &&
+            value !== undefined &&
+            String(value).trim() !== ""
+        ) {
+            return String(value);
+        }
+    }
+
+    return "Unnamed feature";
+}
+
+
+function getFeatureType(feature) {
+
+    if (!feature || !feature.properties) {
+        return "Feature";
+    }
+
+    const p = feature.properties;
+
+    return (
+        p.class ||
+        p.type ||
+        p.subclass ||
+        p.category ||
+        "Feature"
+    );
+}
+
+
+function showGenericFeatureInfo(feature) {
+
+    let panel =
+        document.getElementById(
+            "maplibre-feature-info"
+        );
+
+    if (!panel) {
+
+        panel = document.createElement("div");
+
+        panel.id =
+            "maplibre-feature-info";
+
+        panel.style.position = "absolute";
+        panel.style.top = "20px";
+        panel.style.right = "20px";
+
+        panel.style.zIndex = "20";
+
+        panel.style.background = "#ffffff";
+
+        panel.style.padding = "14px 16px";
+
+        panel.style.borderRadius = "8px";
+
+        panel.style.boxShadow =
+            "0 2px 12px rgba(0,0,0,0.18)";
+
+        panel.style.maxWidth = "300px";
+
+        panel.style.fontFamily =
+            "Arial, sans-serif";
+
+        document
+            .getElementById("full-map-container")
+            .appendChild(panel);
+    }
+
+    const name =
+        getFeatureName(feature);
+
+    const type =
+        getFeatureType(feature);
+
+    panel.innerHTML = `
+        <div style="
+            font-size:16px;
+            font-weight:600;
+            margin-bottom:6px;
+        ">
+            ${name}
+        </div>
+
+        <div style="
+            font-size:13px;
+            color:#666;
+        ">
+            ${type}
+        </div>
+    `;
+}
+
+
+function pointInRing(point, ring) {
+
+    const x = point[0];
+    const y = point[1];
+
+    let inside = false;
+
+    for (
+        let i = 0, j = ring.length - 1;
+        i < ring.length;
+        j = i++
+    ) {
+
+        const xi = ring[i][0];
+        const yi = ring[i][1];
+
+        const xj = ring[j][0];
+        const yj = ring[j][1];
+
+        const intersect =
+            ((yi > y) !== (yj > y)) &&
+            (
+                x <
+                (xj - xi) *
+                (y - yi) /
+                (yj - yi) +
+                xi
+            );
+
+        if (intersect) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
+}
+
+
+function pointInPolygon(point, polygon) {
+
+    if (!polygon || polygon.length === 0) {
+        return false;
+    }
+
+    if (!pointInRing(point, polygon[0])) {
+        return false;
+    }
+
+    for (let i = 1; i < polygon.length; i++) {
+
+        if (pointInRing(point, polygon[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+function getClickedGeometry(
+    feature,
+    lngLat
+) {
+
+    if (!feature || !feature.geometry) {
+        return null;
+    }
+
+    const geometry =
+        feature.geometry;
+
+    const point = [
+        lngLat.lng,
+        lngLat.lat
+    ];
+
+    if (geometry.type === "Polygon") {
+
+        if (
+            pointInPolygon(
+                point,
+                geometry.coordinates
+            )
+        ) {
+            return {
+                type: "Polygon",
+                coordinates:
+                    geometry.coordinates
+            };
+        }
+
+        return null;
+    }
+
+
+    if (geometry.type === "MultiPolygon") {
+
+        for (
+            const polygon
+            of geometry.coordinates
+        ) {
+
+            if (
+                pointInPolygon(
+                    point,
+                    polygon
+                )
+            ) {
+
+                return {
+                    type: "Polygon",
+                    coordinates: polygon
+                };
+            }
+        }
+
+        return null;
+    }
+
+
+    if (
+        geometry.type === "Point"
+    ) {
+
+        return geometry;
+    }
+
+
+    if (
+        geometry.type === "MultiPoint"
+    ) {
+
+        return geometry;
+    }
+
+
+    return geometry;
+}
+
+
+function selectGenericFeature(
+    feature,
+    lngLat
+) {
+
+    if (!feature) {
+        return;
+    }
+
+    const clickedGeometry =
+        getClickedGeometry(
+            feature,
+            lngLat
+        );
+
+    if (!clickedGeometry) {
+        return;
+    }
+
+    selectedFeature = feature;
+
+    const selectionFeature = {
+
+        type: "Feature",
+
+        properties: {
+            ...(
+                feature.properties || {}
+            )
+        },
+
+        geometry: clickedGeometry
+    };
+
+
+    const source =
+        maplibreMap.getSource(
+            "localeify-selection"
+        );
+
+    if (source) {
+
+        source.setData({
+
+            type: "FeatureCollection",
+
+            features: [
+                selectionFeature
+            ]
+        });
+    }
+
+
+    showGenericFeatureInfo(
+        feature
+    );
+
+
+    window.dispatchEvent(
+        new CustomEvent(
+            "localeify:map-feature-selected",
+            {
+                detail: {
+                    feature: feature
+                }
+            }
+        )
+    );
+
+
+    window.dispatchEvent(
+        new CustomEvent(
+            "placeful:map-feature-selected",
+            {
+                detail: {
+                    feature: feature
+                }
+            }
+        )
+    );
+}
+
+
+// ============================================================
+// GENERIC FEATURE SELECTION LAYERS
+// ============================================================
+
+function addSelectionLayers() {
+
+    if (
+        !maplibreMap.getSource(
+            "localeify-selection"
+        )
+    ) {
+
+        maplibreMap.addSource(
+            "localeify-selection",
+            {
+                type: "geojson",
+
+                data:
+                    createEmptyFeatureCollection()
+            }
+        );
+    }
+
+
+    // Polygon fill
+    if (
+        !maplibreMap.getLayer(
+            "localeify-selection-fill"
+        )
+    ) {
+
+        maplibreMap.addLayer({
+
+            id:
+                "localeify-selection-fill",
+
+            type: "fill",
+
+            source:
+                "localeify-selection",
+
+            filter: [
+                "==",
+                ["geometry-type"],
+                "Polygon"
+            ],
+
+            paint: {
+
+                "fill-color":
+                    "#c45c3e",
+
+                "fill-opacity":
+                    0.20
+            }
+        });
+    }
+
+
+    // Polygon boundary
+    if (
+        !maplibreMap.getLayer(
+            "localeify-selection-line"
+        )
+    ) {
+
+        maplibreMap.addLayer({
+
+            id:
+                "localeify-selection-line",
+
+            type: "line",
+
+            source:
+                "localeify-selection",
+
+            filter: [
+                "==",
+                ["geometry-type"],
+                "Polygon"
+            ],
+
+            paint: {
+
+                "line-color":
+                    "#c45c3e",
+
+                "line-width":
+                    3,
+
+                "line-opacity":
+                    0.95
+            }
+        });
+    }
+
+
+    // Point selection
+    if (
+        !maplibreMap.getLayer(
+            "localeify-selection-point"
+        )
+    ) {
+
+        maplibreMap.addLayer({
+
+            id:
+                "localeify-selection-point",
+
+            type: "circle",
+
+            source:
+                "localeify-selection",
+
+            filter: [
+                "==",
+                ["geometry-type"],
+                "Point"
+            ],
+
+            paint: {
+
+                "circle-radius":
+                    8,
+
+                "circle-color":
+                    "#c45c3e",
+
+                "circle-stroke-color":
+                    "#ffffff",
+
+                "circle-stroke-width":
+                    3
+            }
+        });
+    }
+}
+
+
+// ============================================================
+// EXPERIENCE SOURCE
+// ============================================================
+
+function addExperienceSource() {
+
+    // ----------------------------------------
+    // Clustered source
+    // ----------------------------------------
+
+    if (
+        !maplibreMap.getSource(
+            "localeify-experiences"
+        )
+    ) {
+
+        maplibreMap.addSource(
+            "localeify-experiences",
+            {
+                type: "geojson",
+
+                data:
+                    createEmptyFeatureCollection(),
+
+                cluster: true,
+
+                clusterMaxZoom:
+                    CLUSTER_MAX_ZOOM,
+
+                clusterRadius:
+                    45
+            }
+        );
+    }
+
+
+    // ----------------------------------------
+    // Separate unclustered source
+    // for the heatmap
+    // ----------------------------------------
+
+    if (
+        !maplibreMap.getSource(
+            "localeify-experiences-heatmap"
+        )
+    ) {
+
+        maplibreMap.addSource(
+            "localeify-experiences-heatmap",
+            {
+                type: "geojson",
+
+                data:
+                    createEmptyFeatureCollection(),
+
+                cluster: false
+            }
+        );
+    }
+}
+
+
+// ============================================================
+// EXPERIENCE HEATMAP
+// ============================================================
+
+function addExperienceHeatmap() {
+
+    if (
+        maplibreMap.getLayer(
+            "localeify-experience-heatmap"
+        )
+    ) {
+        return;
+    }
+
+
+    maplibreMap.addLayer({
+
+        id:
+            "localeify-experience-heatmap",
+
+        type: "heatmap",
+
+        source:
+            "localeify-experiences-heatmap",
+
+        maxzoom:
+            HEATMAP_MAX_ZOOM + 0.5,
+
+
+        paint: {
+
+            // ----------------------------------------
+            // Weight
+            // ----------------------------------------
+
+            "heatmap-weight": [
+                "interpolate",
+                [
+                    "linear"
+                ],
+                [
+                    "zoom"
+                ],
+
+                0,
+                1,
+
+                9,
+                1
+            ],
+
+
+            // ----------------------------------------
+            // Intensity
+            // ----------------------------------------
+
+            "heatmap-intensity": [
+                "interpolate",
+                [
+                    "linear"
+                ],
+                [
+                    "zoom"
+                ],
+
+                0,
+                1.0,
+
+                5,
+                1.5,
+
+                9,
+                2.0
+            ],
+
+
+            // ----------------------------------------
+            // Radius
+            // ----------------------------------------
+
+            "heatmap-radius": [
+                "interpolate",
+                [
+                    "linear"
+                ],
+                [
+                    "zoom"
+                ],
+
+                0,
+                20,
+
+                4,
+                28,
+
+                7,
+                40,
+
+                9,
+                50
+            ],
+
+
+            // ----------------------------------------
+            // Opacity
+            // ----------------------------------------
+
+            "heatmap-opacity": [
+                "interpolate",
+                [
+                    "linear"
+                ],
+                [
+                    "zoom"
+                ],
+
+                0,
+                0.82,
+
+                8,
+                0.90,
+
+                9,
+                0.95
+            ],
+
+
+            // ----------------------------------------
+            // Terracotta gradient
+            // ----------------------------------------
+
+            "heatmap-color": [
+                "interpolate",
+                [
+                    "linear"
+                ],
+                [
+                    "heatmap-density"
+                ],
+
+                0.00,
+                "rgba(255,255,255,0)",
+
+                0.10,
+                "rgba(255,220,205,0.20)",
+
+                0.25,
+                "rgba(235,170,145,0.40)",
+
+                0.45,
+                "rgba(210,120,90,0.60)",
+
+                0.65,
+                "rgba(196,92,62,0.75)",
+
+                0.80,
+                "rgba(160,60,40,0.88)",
+
+                1.00,
+                "rgba(120,40,25,1)"
+            ]
+        }
+    });
+}
+
+
+// ============================================================
+// CLUSTER CIRCLES
+// ============================================================
+
+function addExperienceClusters() {
+
+    if (
+        maplibreMap.getLayer(
+            "localeify-experience-clusters"
+        )
+    ) {
+        return;
+    }
+
+
+    maplibreMap.addLayer({
+
+        id:
+            "localeify-experience-clusters",
+
+        type: "circle",
+
+        source:
+            "localeify-experiences",
+
+        minzoom:
+            HEATMAP_MAX_ZOOM,
+
+        maxzoom:
+            CLUSTER_MAX_ZOOM + 0.01,
+
+        filter: [
+            "has",
+            "point_count"
+        ],
+
+        paint: {
+
+            // ----------------------------------------
+            // Radius
+            // ----------------------------------------
+
+            "circle-radius": [
+                "step",
+                [
+                    "get",
+                    "point_count"
+                ],
+
+                15,
+
+                5,
+                18,
+
+                10,
+                21,
+
+                25,
+                25,
+
+                50,
+                30,
+
+                100,
+                36
+            ],
+
+
+            // ----------------------------------------
+            // Main color
+            // ----------------------------------------
+
+            "circle-color":
+                "#c45c3e",
+
+
+            // ----------------------------------------
+            // Opacity
+            // ----------------------------------------
+
+            "circle-opacity":
+                0.92,
+
+
+            // ----------------------------------------
+            // White outline
+            // ----------------------------------------
+
+            "circle-stroke-color":
+                "#ffffff",
+
+            "circle-stroke-width": [
+                "step",
+                [
+                    "get",
+                    "point_count"
+                ],
+
+                2,
+
+                10,
+                2.5,
+
+                50,
+                3
+            ],
+
+            "circle-stroke-opacity":
+                0.95
+        }
+    });
+}
+
+
+// ============================================================
+// CLUSTER COUNTS
+// ============================================================
+
+function addExperienceClusterCount() {
+
+    if (
+        maplibreMap.getLayer(
+            "localeify-experience-cluster-count"
+        )
+    ) {
+        return;
+    }
+
+
+    maplibreMap.addLayer({
+
+        id:
+            "localeify-experience-cluster-count",
+
+        type: "symbol",
+
+        source:
+            "localeify-experiences",
+
+        minzoom:
+            HEATMAP_MAX_ZOOM,
+
+        maxzoom:
+            CLUSTER_MAX_ZOOM + 0.01,
+
+        filter: [
+            "has",
+            "point_count"
+        ],
+
+        layout: {
+
+            "text-field": [
+                "get",
+                "point_count_abbreviated"
+            ],
+
+            "text-size": [
+                "step",
+                [
+                    "get",
+                    "point_count"
+                ],
+
+                11,
+
+                10,
+                12,
+
+                50,
+                13,
+
+                100,
+                14
+            ],
+
+            "text-allow-overlap":
+                true,
+
+            "text-ignore-placement":
+                true
+        },
+
+        paint: {
+
+            "text-color":
+                "#ffffff",
+
+            "text-halo-color":
+                "rgba(0,0,0,0.12)",
+
+            "text-halo-width":
+                1
+        }
+    });
+}
+
+
+// ============================================================
+// INDIVIDUAL EXPERIENCE POINTS
+// ============================================================
+
+function addIndividualExperienceLayer() {
+
+    if (
+        maplibreMap.getLayer(
+            "localeify-experiences-points"
+        )
+    ) {
+        return;
+    }
+
+
+    maplibreMap.addLayer({
+
+        id:
+            "localeify-experiences-points",
+
+        type: "circle",
+
+        source:
+            "localeify-experiences",
+
+        minzoom:
+            CLUSTER_MAX_ZOOM,
+
+        filter: [
+            "!",
+            [
+                "has",
+                "point_count"
+            ]
+        ],
+
+        paint: {
+
+            // ----------------------------------------
+            // Radius
+            // ----------------------------------------
+
+            "circle-radius": [
+                "interpolate",
+                [
+                    "linear"
+                ],
+                [
+                    "zoom"
+                ],
+
+                13,
+                5,
+
+                16,
+                6,
+
+                20,
+                7
+            ],
+
+
+            // ----------------------------------------
+            // White center
+            // ----------------------------------------
+
+            "circle-color":
+                "#ffffff",
+
+
+            // ----------------------------------------
+            // Terracotta border
+            // ----------------------------------------
+
+            "circle-stroke-color":
+                "#c45c3e",
+
+            "circle-stroke-width":
+                3,
+
+            "circle-opacity":
+                1
+        }
+    });
+}
+
+
+// ============================================================
+// SELECTED EXPERIENCE
+// ============================================================
+
+function addSelectedExperienceLayer() {
+
+    if (
+        maplibreMap.getLayer(
+            "localeify-selected-experience"
+        )
+    ) {
+        return;
+    }
+
+
+    maplibreMap.addLayer({
+
+        id:
+            "localeify-selected-experience",
+
+        type: "circle",
+
+        source:
+            "localeify-experiences",
+
+        minzoom:
+            CLUSTER_MAX_ZOOM,
+
+        filter: [
+            "all",
+
+            [
+                "!",
+                [
+                    "has",
+                    "point_count"
+                ]
+            ],
+
+            [
+                "==",
+                [
+                    "get",
+                    "id"
+                ],
+                ""
+            ]
+        ],
+
+        paint: {
+
+            "circle-radius": [
+                "interpolate",
+                [
+                    "linear"
+                ],
+                [
+                    "zoom"
+                ],
+
+                13,
+                8,
+
+                16,
+                9,
+
+                20,
+                10
+            ],
+
+            "circle-color":
+                "#c45c3e",
+
+            "circle-stroke-color":
+                "#ffffff",
+
+            "circle-stroke-width":
+                3,
+
+            "circle-opacity":
+                1
+        }
+    });
+}
+
+
+function clearLocaleifySelectedExperience() {
+
+    if (
+        maplibreMap.getLayer(
+            "localeify-selected-experience"
+        )
+    ) {
+
+        maplibreMap.setFilter(
+
+            "localeify-selected-experience",
+
+            [
+                "all",
+
+                [
+                    "!",
+                    [
+                        "has",
+                        "point_count"
+                    ]
+                ],
+
+                [
+                    "==",
+                    [
+                        "get",
+                        "id"
+                    ],
+                    ""
+                ]
+            ]
+        );
+    }
+
+
+    window.localeifySelectedExperience =
+        null;
+
+    window.localeifySelectedExperienceFeature =
+        null;
+}
+
+
+window.clearLocaleifySelectedExperience =
+    clearLocaleifySelectedExperience;
+
+
+// ============================================================
+// PLACES SOURCE
+// ============================================================
+
+function addPlacesSource() {
+
+    if (
+        maplibreMap.getSource(
+            "localeify-places"
+        )
+    ) {
+        return;
+    }
+
+
+    maplibreMap.addSource(
+        "localeify-places",
+        {
+
+            type: "geojson",
+
+            data:
+                createEmptyFeatureCollection()
+        }
+    );
+}
+
+
+// ============================================================
+// PLACE LAYER
+// ============================================================
+
+function addPlacesLayer() {
+
+    if (
+        maplibreMap.getLayer(
+            "localeify-places"
+        )
+    ) {
+        return;
+    }
+
+
+    maplibreMap.addLayer({
+
+        id:
+            "localeify-places",
+
+        type: "circle",
+
+        source:
+            "localeify-places",
+
+        minzoom:
+            PLACE_MEDIUM_ZOOM,
+
+        paint: {
+
+            "circle-radius": [
+                "interpolate",
+                [
+                    "linear"
+                ],
+                [
+                    "zoom"
+                ],
+
+                11,
+                6,
+
+                13,
+                7,
+
+                18,
+                8
+            ],
+
+            "circle-color":
+                "#ffffff",
+
+            "circle-stroke-color":
+                "#6f6f6f",
+
+            "circle-stroke-width":
+                2,
+
+            "circle-opacity":
+                0.95
+        }
+    });
+}
+
+
+// ============================================================
+// PLACE VISIBILITY
+// ============================================================
+
+function updatePlaceVisibility() {
+
+    if (
+        !maplibreMap.getLayer(
+            "localeify-places"
+        )
+    ) {
+        return;
+    }
+
+
+    const zoom =
+        maplibreMap.getZoom();
+
+
+    let filter;
+
+
+    // ----------------------------------------
+    // Low zoom
+    // Only important places
+    // ----------------------------------------
+
+    if (zoom < PLACE_MEDIUM_ZOOM) {
+
+        filter = [
+            "all",
+
+            [
+                ">=",
+                [
+                    "get",
+                    "experience_count"
+                ],
+                5
+            ]
+        ];
+    }
+
+
+    // ----------------------------------------
+    // Medium zoom
+    // ----------------------------------------
+
+    else if (
+        zoom < PLACE_HIGH_ZOOM
+    ) {
+
+        filter = [
+            "all",
+
+            [
+                ">=",
+                [
+                    "get",
+                    "experience_count"
+                ],
+                2
+            ]
+        ];
+    }
+
+
+    // ----------------------------------------
+    // High zoom
+    // ----------------------------------------
+
+    else {
+
+        filter = null;
+    }
+
+
+    maplibreMap.setFilter(
+        "localeify-places",
+        filter
+    );
+}
+
+
+// ============================================================
+// EXPERIENCE VISIBILITY
+// ============================================================
+
+function updateExperienceVisibility() {
+
+    if (
+        !maplibreMap.getLayer(
+            "localeify-experience-heatmap"
+        )
+    ) {
+        return;
+    }
+
+
+    const zoom =
+        maplibreMap.getZoom();
+
+
+    // ----------------------------------------
+    // HEATMAP
+    // ----------------------------------------
+
+    const heatmapVisible =
+        zoom <= HEATMAP_MAX_ZOOM;
+
+
+    // ----------------------------------------
+    // CLUSTERS
+    // ----------------------------------------
+
+    const clustersVisible =
+        zoom > HEATMAP_MAX_ZOOM &&
+        zoom <= CLUSTER_MAX_ZOOM;
+
+
+    // ----------------------------------------
+    // INDIVIDUAL
+    // ----------------------------------------
+
+    const individualsVisible =
+        zoom > CLUSTER_MAX_ZOOM;
+
+
+    maplibreMap.setLayoutProperty(
+
+        "localeify-experience-heatmap",
+
+        "visibility",
+
+        heatmapVisible
+            ? "visible"
+            : "none"
+    );
+
+
+    maplibreMap.setLayoutProperty(
+
+        "localeify-experience-clusters",
+
+        "visibility",
+
+        clustersVisible
+            ? "visible"
+            : "none"
+    );
+
+
+    maplibreMap.setLayoutProperty(
+
+        "localeify-experience-cluster-count",
+
+        "visibility",
+
+        clustersVisible
+            ? "visible"
+            : "none"
+    );
+
+
+    maplibreMap.setLayoutProperty(
+
+        "localeify-experiences-points",
+
+        "visibility",
+
+        individualsVisible
+            ? "visible"
+            : "none"
+    );
+
+
+    maplibreMap.setLayoutProperty(
+
+        "localeify-selected-experience",
+
+        "visibility",
+
+        individualsVisible
+            ? "visible"
+            : "none"
+    );
+}
+
+
+// ============================================================
+// EMOTION FILTER
+// ============================================================
+
+function updateEmotionFilter() {
+
+    const layers = [
+
+        "localeify-experience-heatmap",
+
+        "localeify-experience-clusters",
+
+        "localeify-experience-cluster-count",
+
+        "localeify-experiences-points",
+
+        "localeify-selected-experience"
+    ];
+
+
+    for (const layerId of layers) {
+
+        if (
+            !maplibreMap.getLayer(
+                layerId
+            )
+        ) {
+            continue;
+        }
+
+
+        const baseFilter =
+            layerId ===
+            "localeify-experience-heatmap"
+
+                ? [
+                    "!",
+                    [
+                        "has",
+                        "point_count"
+                    ]
+                ]
+
+                : layerId ===
+                  "localeify-experiences-points"
+
+                    ? [
+                        "!",
+                        [
+                            "has",
+                            "point_count"
+                        ]
+                    ]
+
+                    : layerId ===
+                      "localeify-selected-experience"
+
+                        ? [
+                            "all",
+
+                            [
+                                "!",
+                                [
+                                    "has",
+                                    "point_count"
+                                ]
+                            ],
+
+                            [
+                                "==",
+                                [
+                                    "get",
+                                    "id"
+                                ],
+                                ""
+                            ]
+                        ]
+
+                        : [
+                            "has",
+                            "point_count"
+                        ];
+
+
+        if (
+            currentEmotionFilter === null
+        ) {
+
+            maplibreMap.setFilter(
+                layerId,
+                baseFilter
+            );
+
+            continue;
+        }
+
+
+        maplibreMap.setFilter(
+
+            layerId,
+
+            [
+                "all",
+
+                baseFilter,
+
+                [
+                    "in",
+
+                    currentEmotionFilter,
+
+                    [
+                        "get",
+                        "emotion"
+                    ]
+                ]
+            ]
+        );
+    }
+}
+
+
+// ============================================================
+// UPDATE ALL VISUALIZATION
+// ============================================================
+
+function updateVisualization() {
+
+    if (!mapLoaded) {
+        return;
+    }
+
+
+    updateExperienceVisibility();
+
+    updatePlaceVisibility();
+}
+
+
+// ============================================================
+// LOAD EXPERIENCES
+// ============================================================
 
 async function loadExperiences() {
 
     try {
 
-        const source =
-            maplibreMap.getSource("localeify-experiences");
-
-        if (!source) {
-            return;
-        }
-
-
-        const bbox = getMapBboxParams();
-
-
-        const params = new URLSearchParams({
-
-            offset: "0",
-
-            limit: "500",
-
-            min_lng: String(bbox.min_lng),
-
-            min_lat: String(bbox.min_lat),
-
-            max_lng: String(bbox.max_lng),
-
-            max_lat: String(bbox.max_lat)
-        });
-
-
-        console.log(
-            "Loading Localeify experiences:",
-            params.toString()
-        );
-
-
-        const response = await apiFetch(
-            API_BASE_URL +
-            "/experiences/?" +
-            params.toString()
-        );
+        const response =
+            await fetch(
+                "http://127.0.0.1:8000/api/experiences/?offset=0&limit=500"
+            );
 
 
         if (!response.ok) {
 
             throw new Error(
-                "HTTP error: " + response.status
+                `HTTP ${response.status}`
             );
         }
 
 
-        const geojson = await response.json();
+        const geojson =
+            await response.json();
 
 
-        console.log(
-            "Localeify experiences received:",
+        localeifyExperiencesGeoJSON =
+            geojson;
+
+
+        const clusteredSource =
+            maplibreMap.getSource(
+                "localeify-experiences"
+            );
+
+        const heatmapSource =
+            maplibreMap.getSource(
+                "localeify-experiences-heatmap"
+            );
+
+
+        if (!clusteredSource) {
+
+            console.error(
+                "Localeify clustered experience source not found."
+            );
+
+            return;
+        }
+
+
+        if (!heatmapSource) {
+
+            console.error(
+                "Localeify heatmap experience source not found."
+            );
+
+            return;
+        }
+
+
+        // Same experience data goes into both sources.
+
+        clusteredSource.setData(
+            geojson
+        );
+
+        heatmapSource.setData(
             geojson
         );
 
 
-        // ----------------------------------------------------
-        // The API already returns GeoJSON.
-        //
-        // Unlike OpenLayers, MapLibre does not require us to
-        // convert the features into another feature class.
-        // ----------------------------------------------------
-
-        if (
-            !geojson ||
-            geojson.type !== "FeatureCollection"
-        ) {
-
-            throw new Error(
-                "Experiences API did not return a GeoJSON FeatureCollection."
-            );
-        }
-
-
-        source.setData(geojson);
-
-
         console.log(
             "Localeify experiences rendered:",
-            geojson.features.length
+            geojson.features
+                ? geojson.features.length
+                : 0
         );
 
 
-    } catch (error) {
+        updateVisualization();
+    }
+
+    catch (error) {
 
         console.error(
             "Failed to load Localeify experiences:",
@@ -331,178 +1758,530 @@ async function loadExperiences() {
     }
 }
 
+
+// ============================================================
+// LOAD PLACES
+// ============================================================
+
 async function loadLocaleifyPlaces() {
 
     try {
 
-        const response = await apiFetch(
-            API_BASE_URL + "/places/with-experiences"
-        );
+        const response =
+            await fetch(
+                "http://127.0.0.1:8000/api/places/with-experiences"
+            );
+
 
         if (!response.ok) {
+
             throw new Error(
-                "HTTP error: " + response.status
+                `HTTP ${response.status}`
             );
         }
 
-        const places = await response.json();
 
-        const features = places
-            .filter(function (place) {
-                return (
-                    place.longitude !== null &&
-                    place.latitude !== null
+        const places =
+            await response.json();
+
+
+        localeifyPlaces =
+            places;
+
+
+        const features =
+            places
+                .filter(
+                    place =>
+                        place.longitude !== null &&
+                        place.latitude !== null
+                )
+                .map(
+                    place => ({
+
+                        type: "Feature",
+
+                        geometry: {
+
+                            type: "Point",
+
+                            coordinates: [
+
+                                Number(
+                                    place.longitude
+                                ),
+
+                                Number(
+                                    place.latitude
+                                )
+                            ]
+                        },
+
+                        properties: {
+
+                            id:
+                                place.id,
+
+                            name:
+                                place.name,
+
+                            category:
+                                place.category,
+
+                            address:
+                                place.address,
+
+                            city:
+                                place.city,
+
+                            country:
+                                place.country,
+
+                            experience_count:
+                                Number(
+                                    place.experience_count ||
+                                    0
+                                )
+                        }
+                    })
                 );
-            })
-            .map(function (place) {
 
-                return {
-                    type: "Feature",
-
-                    id: String(place.id),
-
-                    geometry: {
-                        type: "Point",
-
-                        coordinates: [
-                            Number(place.longitude),
-                            Number(place.latitude)
-                        ]
-                    },
-
-                    properties: {
-                        id: place.id,
-                        name: place.name,
-                        category: place.category,
-                        address: place.address,
-                        city: place.city,
-                        country: place.country,
-                        experience_count:
-                            Number(place.experience_count || 0)
-                    }
-                };
-
-            });
-
-        const geojson = {
-            type: "FeatureCollection",
-            features: features
-        };
 
         const source =
             maplibreMap.getSource(
                 "localeify-places"
             );
 
+
         if (source) {
-            source.setData(geojson);
+
+            source.setData({
+
+                type:
+                    "FeatureCollection",
+
+                features:
+                    features
+            });
         }
+
 
         console.log(
             "Localeify places loaded:",
             features.length
         );
 
-    } catch (error) {
+
+        updatePlaceVisibility();
+    }
+
+    catch (error) {
 
         console.error(
             "Failed to load Localeify places:",
             error
         );
-
     }
 }
-// ------------------------------------------------------------
-// DEBOUNCED EXPERIENCE LOADING
-// ------------------------------------------------------------
-
-function scheduleLoadExperiences() {
-
-    if (experiencesReloadTimer) {
-
-        clearTimeout(
-            experiencesReloadTimer
-        );
-    }
 
 
-    experiencesReloadTimer = setTimeout(
-        function () {
+// ============================================================
+// EXPERIENCE SIDEBAR ADAPTER
+// ============================================================
 
-            loadExperiences();
+function createExperienceSidebarFeature(
+    feature
+) {
 
+    return {
+
+        get: function (key) {
+
+            if (
+                feature.properties &&
+                Object.prototype.hasOwnProperty.call(
+                    feature.properties,
+                    key
+                )
+            ) {
+
+                return feature.properties[key];
+            }
+
+            return null;
         },
-        300
-    );
+
+
+        getGeometry: function () {
+
+            return feature.geometry || null;
+        },
+
+
+        mapLibreFeature:
+            feature
+    };
 }
 
 
 // ============================================================
-// EXPERIENCE FILTERING
-// ============================================================
-//
-// We are intentionally not implementing the final filtering
-// architecture yet.
-//
-// For this migration step, the complete API GeoJSON is loaded.
-// The existing OpenLayers emotion filtering remains active
-// underneath.
-//
-// This function is kept here so we can migrate the filter
-// cleanly in the next step.
+// OPEN EXPERIENCE SIDEBAR
 // ============================================================
 
-function setExperienceFilter(emotion) {
+function openExperienceFromMap(
+    feature
+) {
 
-    activeEmotionFilter = emotion || "all";
+    if (
+        typeof window.openExperienceSidebar !==
+        "function"
+    ) {
+
+        console.warn(
+            "openExperienceSidebar() is not available."
+        );
+
+        return;
+    }
 
 
-    const layerId =
-        "localeify-experiences";
+    const experienceFeature =
+        createExperienceSidebarFeature(
+            feature
+        );
+
+
+    const experienceId =
+        feature.properties
+            ? feature.properties.id
+            : null;
 
 
     if (
-        !maplibreMap.getLayer(layerId)
+        maplibreMap.getLayer(
+            "localeify-selected-experience"
+        )
     ) {
-        return;
+
+        maplibreMap.setFilter(
+
+            "localeify-selected-experience",
+
+            [
+                "all",
+
+                [
+                    "!",
+                    [
+                        "has",
+                        "point_count"
+                    ]
+                ],
+
+                [
+                    "==",
+                    [
+                        "get",
+                        "id"
+                    ],
+                    String(
+                        experienceId
+                    )
+                ]
+            ]
+        );
     }
 
 
-    if (activeEmotionFilter === "all") {
+    window.localeifySelectedExperience =
+        experienceId;
 
-        maplibreMap.setFilter(
-            layerId,
-            null
+    window.localeifySelectedExperienceFeature =
+        feature;
+
+
+    window.openExperienceSidebar(
+        experienceFeature
+    );
+}
+
+
+// ============================================================
+// OPEN PLACE SIDEBAR
+// ============================================================
+
+function openPlaceFromMap(
+    feature
+) {
+
+    if (
+        typeof window.openPlaceSidebar !==
+        "function"
+    ) {
+
+        console.warn(
+            "openPlaceSidebar() is not available."
         );
 
         return;
     }
 
 
-    maplibreMap.setFilter(
-        layerId,
-        [
-            "==",
-            ["get", "emotion"],
-            activeEmotionFilter
-        ]
+    const placeId =
+        feature.properties
+            ? feature.properties.id
+            : null;
+
+
+    // Clear selected experience
+    if (
+        typeof window.clearLocaleifySelectedExperience ===
+        "function"
+    ) {
+
+        window.clearLocaleifySelectedExperience();
+    }
+
+
+    window.openPlaceSidebar(
+        feature.properties
     );
 }
 
 
-// Make this available for the next migration step.
-window.setLocaleifyExperienceFilter =
-    setExperienceFilter;
+// ============================================================
+// ADD EXPERIENCE LOCATION BRIDGE
+// ============================================================
+
+function isSelectingExperienceLocation() {
+
+    return (
+        typeof window.localeifyIsSelectingLocation ===
+        "function" &&
+        window.localeifyIsSelectingLocation()
+    );
+}
+
+
+function selectExperienceLocation(
+    longitude,
+    latitude
+) {
+
+    if (
+        typeof window.localeifySelectExperienceLocation ===
+        "function"
+    ) {
+
+        window.localeifySelectExperienceLocation(
+            longitude,
+            latitude
+        );
+    }
+}
 
 
 // ============================================================
-// EXPERIENCE HOVER
+// MAP LOAD
 // ============================================================
 
 maplibreMap.on(
-    "mousemove",
-    "localeify-experiences",
+    "load",
+    async function () {
+
+        mapLoaded = true;
+
+
+        console.log(
+            "MapLibre loaded."
+        );
+
+
+        // ----------------------------------------
+        // Generic selection
+        // ----------------------------------------
+
+        addSelectionLayers();
+
+
+        // ----------------------------------------
+        // Experiences
+        // ----------------------------------------
+
+        addExperienceSource();
+
+        addExperienceHeatmap();
+
+        addExperienceClusters();
+
+        addExperienceClusterCount();
+
+        addIndividualExperienceLayer();
+
+        addSelectedExperienceLayer();
+
+
+        // ----------------------------------------
+        // Places
+        // ----------------------------------------
+
+        addPlacesSource();
+
+        addPlacesLayer();
+
+
+        // ----------------------------------------
+        // Initial visualization
+        // ----------------------------------------
+
+        updateVisualization();
+
+
+        // ----------------------------------------
+        // Load data
+        // ----------------------------------------
+
+        await loadExperiences();
+
+        await loadLocaleifyPlaces();
+    }
+);
+
+
+// ============================================================
+// ZOOM
+// ============================================================
+
+maplibreMap.on(
+    "zoomend",
+    function () {
+
+        updateVisualization();
+    }
+);
+
+
+// ============================================================
+// CLUSTER CLICK
+// ============================================================
+
+maplibreMap.on(
+    "click",
+    "localeify-experience-clusters",
     function (event) {
+
+        if (
+            isSelectingExperienceLocation()
+        ) {
+
+            selectExperienceLocation(
+                event.lngLat.lng,
+                event.lngLat.lat
+            );
+
+            return;
+        }
+
+
+        const features =
+            maplibreMap.queryRenderedFeatures(
+                event.point,
+                {
+                    layers: [
+                        "localeify-experience-clusters"
+                    ]
+                }
+            );
+
+
+        if (
+            !features ||
+            features.length === 0
+        ) {
+            return;
+        }
+
+
+        const cluster =
+            features[0];
+
+
+        const clusterId =
+            cluster.properties
+                .cluster_id;
+
+
+        const source =
+            maplibreMap.getSource(
+                "localeify-experiences"
+            );
+
+
+        if (
+            !source ||
+            typeof source.getClusterExpansionZoom !==
+            "function"
+        ) {
+            return;
+        }
+
+
+        source.getClusterExpansionZoom(
+
+            clusterId,
+
+            function (
+                error,
+                zoom
+            ) {
+
+                if (error) {
+
+                    console.error(
+                        "Cluster expansion error:",
+                        error
+                    );
+
+                    return;
+                }
+
+
+                maplibreMap.easeTo({
+
+                    center:
+                        cluster.geometry.coordinates,
+
+                    zoom:
+                        Math.min(
+                            zoom,
+                            20
+                        )
+                });
+            }
+        );
+    }
+);
+
+
+// ============================================================
+// CLUSTER CURSOR
+// ============================================================
+
+maplibreMap.on(
+    "mouseenter",
+    "localeify-experience-clusters",
+    function () {
+
+        if (
+            isSelectingExperienceLocation()
+        ) {
+
+            maplibreMap.getCanvas().style.cursor =
+                "crosshair";
+
+            return;
+        }
+
 
         maplibreMap.getCanvas().style.cursor =
             "pointer";
@@ -512,8 +2291,19 @@ maplibreMap.on(
 
 maplibreMap.on(
     "mouseleave",
-    "localeify-experiences",
+    "localeify-experience-clusters",
     function () {
+
+        if (
+            isSelectingExperienceLocation()
+        ) {
+
+            maplibreMap.getCanvas().style.cursor =
+                "crosshair";
+
+            return;
+        }
+
 
         maplibreMap.getCanvas().style.cursor =
             "";
@@ -527,1011 +2317,422 @@ maplibreMap.on(
 
 maplibreMap.on(
     "click",
-    "localeify-experiences",
+    "localeify-experiences-points",
     function (event) {
 
-        const features = event.features || [];
+        if (
+            isSelectingExperienceLocation()
+        ) {
 
-        if (!features.length) {
+            selectExperienceLocation(
+                event.lngLat.lng,
+                event.lngLat.lat
+            );
+
             return;
         }
 
-        const feature = features[0];
 
-        console.log(
-            "CLICKED LOCALEIFY EXPERIENCE:",
+        const features =
+            maplibreMap.queryRenderedFeatures(
+                event.point,
+                {
+                    layers: [
+                        "localeify-experiences-points"
+                    ]
+                }
+            );
+
+
+        if (
+            !features ||
+            features.length === 0
+        ) {
+            return;
+        }
+
+
+        const feature =
+            features[0];
+
+
+        openExperienceFromMap(
             feature
         );
-
-        console.table({
-            id:
-                feature.properties?.id ??
-                feature.id ??
-                null,
-
-            title:
-                feature.properties?.title ??
-                null,
-
-            emotion:
-                feature.properties?.emotion ??
-                null,
-
-            geometry:
-                feature.geometry?.type ??
-                null,
-
-            longitude:
-                event.lngLat.lng,
-
-            latitude:
-                event.lngLat.lat
-        });
-
-        // ----------------------------------------------------
-        // Adapter:
-        // makes a MapLibre feature look like an OpenLayers
-        // feature to the existing experience sidebar
-        // ----------------------------------------------------
-
-        const experienceFeature = {
-
-            get: function (key) {
-
-                if (
-                    feature.properties &&
-                    Object.prototype.hasOwnProperty.call(
-                        feature.properties,
-                        key
-                    )
-                ) {
-                    return feature.properties[key];
-                }
-
-                return null;
-            },
-
-            getGeometry: function () {
-                return feature.geometry || null;
-            },
-
-            mapLibreFeature: feature
-        };
-
-        window.localeifySelectedExperience =
-            feature;
-
-        window.localeifySelectedExperienceFeature =
-            experienceFeature;
-
-        // ----------------------------------------------------
-        // Highlight selected experience
-        // ----------------------------------------------------
-
-        const experienceId =
-            feature.properties?.id ??
-            feature.id ??
-            "";
-
-        if (
-            maplibreMap.getLayer(
-                "localeify-selected-experience"
-            )
-        ) {
-
-            maplibreMap.setFilter(
-                "localeify-selected-experience",
-                [
-                    "==",
-                    ["get", "id"],
-                    String(experienceId)
-                ]
-            );
-        }
-
-        // ----------------------------------------------------
-        // Hide generic geographic feature info
-        // ----------------------------------------------------
-
-        if (featureInfo) {
-            featureInfo.style.display = "none";
-        }
-
-        // ----------------------------------------------------
-        // Close other sidebars
-        // ----------------------------------------------------
-
-        if (
-            typeof closePlaceSidebar ===
-            "function"
-        ) {
-            closePlaceSidebar();
-        }
-
-        if (
-            typeof closeProfileSidebar ===
-            "function"
-        ) {
-            closeProfileSidebar();
-        }
-
-        // ----------------------------------------------------
-        // Open existing Localeify experience sidebar
-        // ----------------------------------------------------
-
-        if (
-            typeof openExperienceSidebar ===
-            "function"
-        ) {
-            openExperienceSidebar(
-                experienceFeature
-            );
-        }
     }
 );
 
-// ============================================================
-// EXPERIENCE INFO
-// ============================================================
-
-function showExperienceInfo(
-    feature,
-    event
-) {
-
-    const properties =
-        feature.properties || {};
-
-
-    const title =
-        properties.title ||
-        "Untitled experience";
-
-
-    const story =
-        properties.story ||
-        "";
-
-
-    const emotion =
-        properties.emotion ||
-        "";
-
-
-    const id =
-        properties.id ??
-        feature.id ??
-        "—";
-
-
-    featureInfo.innerHTML = "";
-
-
-    const titleElement =
-        document.createElement("div");
-
-    titleElement.style.fontWeight =
-        "700";
-
-    titleElement.style.fontSize =
-        "15px";
-
-    titleElement.style.marginBottom =
-        "6px";
-
-    titleElement.textContent =
-        title;
-
-
-    featureInfo.appendChild(
-        titleElement
-    );
-
-
-    if (story) {
-
-        const storyElement =
-            document.createElement("div");
-
-        storyElement.style.marginBottom =
-            "6px";
-
-        storyElement.textContent =
-            story;
-
-        featureInfo.appendChild(
-            storyElement
-        );
-    }
-
-
-    const metaElement =
-        document.createElement("div");
-
-    metaElement.style.fontSize =
-        "11px";
-
-    metaElement.style.opacity =
-        "0.7";
-
-    metaElement.textContent =
-        "Experience ID: " +
-        id +
-        " | " +
-        event.lngLat.lng.toFixed(6) +
-        ", " +
-        event.lngLat.lat.toFixed(6);
-
-
-    featureInfo.appendChild(
-        metaElement
-    );
-
-
-    featureInfo.style.display =
-        "block";
-}
-
 
 // ============================================================
-// GENERIC MAP FEATURE SELECTION
-// ============================================================
-//
-// This is the geographic-feature selection system we already
-// built for OpenFreeMap.
-//
-// It remains independent from Localeify experience selection.
+// EXPERIENCE CURSOR
 // ============================================================
 
-function pointInRing(
-    point,
-    ring
-) {
-
-    const x = point[0];
-    const y = point[1];
-
-    let inside = false;
-
-
-    for (
-        let i = 0,
-        j = ring.length - 1;
-
-        i < ring.length;
-
-        j = i++
-    ) {
-
-        const xi = ring[i][0];
-        const yi = ring[i][1];
-
-        const xj = ring[j][0];
-        const yj = ring[j][1];
-
-
-        const intersect =
-            (
-                yi > y
-            ) !== (
-                yj > y
-            ) &&
-            x <
-                (
-                    (xj - xi) *
-                    (y - yi)
-                ) /
-                (yj - yi) +
-                xi;
-
-
-        if (intersect) {
-            inside = !inside;
-        }
-    }
-
-
-    return inside;
-}
-
-
-function pointInPolygon(
-    point,
-    polygon
-) {
-
-    if (!polygon || !polygon.length) {
-        return false;
-    }
-
-
-    if (!pointInRing(
-        point,
-        polygon[0]
-    )) {
-
-        return false;
-    }
-
-
-    for (
-        let i = 1;
-
-        i < polygon.length;
-
-        i++
-    ) {
+maplibreMap.on(
+    "mouseenter",
+    "localeify-experiences-points",
+    function () {
 
         if (
-            pointInRing(
-                point,
-                polygon[i]
-            )
+            isSelectingExperienceLocation()
         ) {
 
-            return false;
+            maplibreMap.getCanvas().style.cursor =
+                "crosshair";
+
+            return;
         }
+
+
+        maplibreMap.getCanvas().style.cursor =
+            "pointer";
     }
+);
 
 
-    return true;
-}
+maplibreMap.on(
+    "mouseleave",
+    "localeify-experiences-points",
+    function () {
 
-
-function getClickedGeometry(
-    feature,
-    event
-) {
-
-    const geometry =
-        feature.geometry;
-
-
-    if (!geometry) {
-        return null;
-    }
-
-
-    const clickPoint = [
-        event.lngLat.lng,
-        event.lngLat.lat
-    ];
-
-
-    // --------------------------------------------------------
-    // MultiPolygon
-    // --------------------------------------------------------
-
-    if (
-        geometry.type ===
-        "MultiPolygon"
-    ) {
-
-        const polygons =
-            geometry.coordinates;
-
-
-        for (
-            let i = 0;
-
-            i < polygons.length;
-
-            i++
+        if (
+            isSelectingExperienceLocation()
         ) {
 
-            if (
-                pointInPolygon(
-                    clickPoint,
-                    polygons[i]
-                )
-            ) {
+            maplibreMap.getCanvas().style.cursor =
+                "crosshair";
 
-                return {
-                    type: "Polygon",
-
-                    coordinates:
-                        polygons[i]
-                };
-            }
+            return;
         }
 
 
-        // If no polygon contains the exact click,
-        // preserve the original geometry.
-        return geometry;
+        maplibreMap.getCanvas().style.cursor =
+            "";
     }
-
-
-    return geometry;
-}
-
-
-// ------------------------------------------------------------
-// Selection source
-// ------------------------------------------------------------
-
-function createSelectionSource() {
-
-    if (
-        maplibreMap.getSource(
-            "localeify-selection"
-        )
-    ) {
-        return;
-    }
-
-
-    maplibreMap.addSource(
-        "localeify-selection",
-        {
-            type: "geojson",
-
-            data: createEmptyFeatureCollection()
-        }
-    );
-
-
-    maplibreMap.addLayer({
-
-        id:
-            "localeify-selection-fill",
-
-        type:
-            "fill",
-
-        source:
-            "localeify-selection",
-
-        filter: [
-            "==",
-            ["geometry-type"],
-            "Polygon"
-        ],
-
-        paint: {
-
-            "fill-color":
-                "#c45c3e",
-
-            "fill-opacity":
-                0.18
-        }
-    });
-
-
-    maplibreMap.addLayer({
-
-        id:
-            "localeify-selection-line",
-
-        type:
-            "line",
-
-        source:
-            "localeify-selection",
-
-        filter: [
-            "in",
-            ["geometry-type"],
-            "LineString",
-            "Polygon"
-        ],
-
-        paint: {
-
-            "line-color":
-                "#c45c3e",
-
-            "line-width":
-                3
-        }
-    });
-
-
-    maplibreMap.addLayer({
-
-        id:
-            "localeify-selection-point",
-
-        type:
-            "circle",
-
-        source:
-            "localeify-selection",
-
-        filter: [
-            "==",
-            ["geometry-type"],
-            "Point"
-        ],
-
-        paint: {
-
-            "circle-radius":
-                7,
-
-            "circle-color":
-                "#c45c3e",
-
-            "circle-stroke-color":
-                "#ffffff",
-
-            "circle-stroke-width":
-                2
-        }
-    });
-}
+);
 
 
 // ============================================================
-// GENERIC MAP FEATURE SELECTION
+// PLACE CLICK
 // ============================================================
 
-function selectMapFeature(
-    feature,
-    event
-) {
+maplibreMap.on(
+    "click",
+    "localeify-places",
+    function (event) {
 
-    selectedFeature =
-        feature;
+        if (
+            isSelectingExperienceLocation()
+        ) {
 
-
-    window.placefulSelectedMapFeature =
-        feature;
-
-
-    const selectedGeometry =
-        getClickedGeometry(
-            feature,
-            event
-        );
-
-
-    const source =
-        maplibreMap.getSource(
-            "localeify-selection"
-        );
-
-
-    if (source) {
-
-        source.setData({
-
-            type:
-                "FeatureCollection",
-
-            features: [
-
-                {
-                    type:
-                        "Feature",
-
-                    geometry:
-                        selectedGeometry,
-
-                    properties:
-                        {}
-                }
-
-            ]
-        });
-    }
-
-
-    const normalizedFeature = {
-
-        source:
-            feature.source ??
-            null,
-
-        sourceLayer:
-            feature.sourceLayer ??
-            null,
-
-        styleLayer:
-            feature.layer?.id ??
-            null,
-
-        id:
-            feature.id ??
-            null,
-
-        properties:
-            feature.properties ??
-            {},
-
-        geometry:
-            feature.geometry ??
-            null,
-
-        selectedGeometry:
-            selectedGeometry,
-
-        lngLat: {
-
-            lng:
+            selectExperienceLocation(
                 event.lngLat.lng,
-
-            lat:
                 event.lngLat.lat
+            );
+
+            return;
         }
-    };
 
 
-    window.localeifySelectedMapFeature =
-        normalizedFeature;
-
-
-    showMapFeatureInfo(
-        normalizedFeature
-    );
-
-
-    window.dispatchEvent(
-        new CustomEvent(
-            "localeify:map-feature-selected",
-            {
-                detail: {
-
-                    feature:
-                        normalizedFeature,
-
-                    rawFeature:
-                        feature,
-
-                    map:
-                        maplibreMap
+        const features =
+            maplibreMap.queryRenderedFeatures(
+                event.point,
+                {
+                    layers: [
+                        "localeify-places"
+                    ]
                 }
-            }
-        )
-    );
+            );
 
 
-    window.dispatchEvent(
-        new CustomEvent(
-            "placeful:map-feature-selected",
-            {
-                detail: {
-
-                    feature:
-                        feature,
-
-                    normalizedFeature:
-                        normalizedFeature
-                }
-            }
-        )
-    );
+        if (
+            !features ||
+            features.length === 0
+        ) {
+            return;
+        }
 
 
-    console.log(
-        "Localeify selected geographic feature:",
-        normalizedFeature
-    );
-}
-
-
-// ============================================================
-// GENERIC FEATURE INFO
-// ============================================================
-
-function showMapFeatureInfo(
-    feature
-) {
-
-    const properties =
-        feature.properties || {};
-
-
-    const name =
-        properties.name ||
-        "Unnamed feature";
-
-
-    const geometryType =
-        feature.geometry?.type ||
-        "Unknown";
-
-
-    const source =
-        feature.source ||
-        "Unknown";
-
-
-    const sourceLayer =
-        feature.sourceLayer ||
-        "Unknown";
-
-
-    const styleLayer =
-        feature.styleLayer ||
-        "Unknown";
-
-
-    const id =
-        feature.id ??
-        "Unknown";
-
-
-    featureInfo.innerHTML = "";
-
-
-    const title =
-        document.createElement("div");
-
-    title.style.fontWeight =
-        "700";
-
-    title.style.fontSize =
-        "15px";
-
-    title.style.marginBottom =
-        "8px";
-
-    title.textContent =
-        name;
-
-
-    featureInfo.appendChild(
-        title
-    );
-
-
-    const meta =
-        document.createElement("div");
-
-    meta.innerHTML =
-        "<strong>Geometry:</strong> " +
-        geometryType +
-        "<br>" +
-
-        "<strong>Source:</strong> " +
-        source +
-        "<br>" +
-
-        "<strong>Source layer:</strong> " +
-        sourceLayer +
-        "<br>" +
-
-        "<strong>Style layer:</strong> " +
-        styleLayer +
-        "<br>" +
-
-        "<strong>Feature ID:</strong> " +
-        id;
-
-
-    featureInfo.appendChild(
-        meta
-    );
-
-
-    const propertiesTitle =
-        document.createElement("div");
-
-    propertiesTitle.style.fontWeight =
-        "700";
-
-    propertiesTitle.style.marginTop =
-        "10px";
-
-    propertiesTitle.style.marginBottom =
-        "4px";
-
-    propertiesTitle.textContent =
-        "Properties";
-
-
-    featureInfo.appendChild(
-        propertiesTitle
-    );
-
-
-    const pre =
-        document.createElement("pre");
-
-    pre.style.whiteSpace =
-        "pre-wrap";
-
-    pre.style.wordBreak =
-        "break-word";
-
-    pre.style.fontSize =
-        "11px";
-
-    pre.textContent =
-        JSON.stringify(
-            properties,
-            null,
-            2
+        openPlaceFromMap(
+            features[0]
         );
-
-
-    featureInfo.appendChild(
-        pre
-    );
-
-
-    featureInfo.style.display =
-        "block";
-}
+    }
+);
 
 
 // ============================================================
-// GENERIC VECTOR FEATURE HOVER
+// PLACE CURSOR
+// ============================================================
+
+maplibreMap.on(
+    "mouseenter",
+    "localeify-places",
+    function () {
+
+        if (
+            isSelectingExperienceLocation()
+        ) {
+
+            maplibreMap.getCanvas().style.cursor =
+                "crosshair";
+
+            return;
+        }
+
+
+        maplibreMap.getCanvas().style.cursor =
+            "pointer";
+    }
+);
+
+
+maplibreMap.on(
+    "mouseleave",
+    "localeify-places",
+    function () {
+
+        if (
+            isSelectingExperienceLocation()
+        ) {
+
+            maplibreMap.getCanvas().style.cursor =
+                "crosshair";
+
+            return;
+        }
+
+
+        maplibreMap.getCanvas().style.cursor =
+            "";
+    }
+);
+
+
+// ============================================================
+// GENERIC MAP HOVER
 // ============================================================
 
 maplibreMap.on(
     "mousemove",
     function (event) {
 
-        const features =
-            maplibreMap.queryRenderedFeatures(
-                event.point
+        if (
+            isSelectingExperienceLocation()
+        ) {
+
+            maplibreMap.getCanvas().style.cursor =
+                "crosshair";
+
+            return;
+        }
+
+
+        const interactiveLayers = [
+
+            "localeify-experience-clusters",
+
+            "localeify-experiences-points",
+
+            "localeify-places"
+        ];
+
+
+        const existingLayers =
+            interactiveLayers.filter(
+                layer =>
+                    maplibreMap.getLayer(
+                        layer
+                    )
             );
 
 
-        if (features.length > 0) {
+        let features = [];
+
+
+        if (
+            existingLayers.length > 0
+        ) {
+
+            features =
+                maplibreMap.queryRenderedFeatures(
+                    event.point,
+                    {
+                        layers:
+                            existingLayers
+                    }
+                );
+        }
+
+
+        if (
+            features.length > 0
+        ) {
 
             maplibreMap.getCanvas().style.cursor =
                 "pointer";
 
-        } else {
-
-            maplibreMap.getCanvas().style.cursor =
-                "";
+            return;
         }
+
+
+        maplibreMap.getCanvas().style.cursor =
+            "";
     }
 );
 
 
 // ============================================================
-// GENERIC VECTOR FEATURE CLICK
-// ============================================================
-//
-// IMPORTANT:
-//
-// We deliberately exclude Localeify experience features here.
-// Experience clicks are handled by the dedicated experience
-// layer handler above.
-//
-// Everything else belongs to OpenFreeMap geographic features.
+// GENERIC MAP CLICK
 // ============================================================
 
 maplibreMap.on(
     "click",
     function (event) {
 
+        if (
+            isSelectingExperienceLocation()
+        ) {
+
+            selectExperienceLocation(
+                event.lngLat.lng,
+                event.lngLat.lat
+            );
+
+            return;
+        }
+
+
+        // ----------------------------------------
+        // Ignore clicks already handled by
+        // dedicated interactive layers
+        // ----------------------------------------
+
+        const interactiveLayers = [
+
+            "localeify-experience-clusters",
+
+            "localeify-experiences-points",
+
+            "localeify-places"
+        ];
+
+
+        const existingLayers =
+            interactiveLayers.filter(
+                layer =>
+                    maplibreMap.getLayer(
+                        layer
+                    )
+            );
+
+
+        let interactiveFeatures = [];
+
+
+        if (
+            existingLayers.length > 0
+        ) {
+
+            interactiveFeatures =
+                maplibreMap.queryRenderedFeatures(
+                    event.point,
+                    {
+                        layers:
+                            existingLayers
+                    }
+                );
+        }
+
+
+        if (
+            interactiveFeatures.length > 0
+        ) {
+            return;
+        }
+
+
+        // ----------------------------------------
+        // Query OpenFreeMap features
+        // ----------------------------------------
+
         const features =
             maplibreMap.queryRenderedFeatures(
                 event.point
             );
 
 
-        console.log(
-            "CLICKED FEATURES:",
-            features
-        );
+        if (
+            !features ||
+            features.length === 0
+        ) {
 
-
-        console.table(
-
-            features.map(
-                function (
-                    feature,
-                    index
-                ) {
-
-                    return {
-
-                        index:
-                            index,
-
-                        id:
-                            feature.id ??
-                            null,
-
-                        source:
-                            feature.source ??
-                            null,
-
-                        sourceLayer:
-                            feature.sourceLayer ??
-                            null,
-
-                        styleLayer:
-                            feature.layer?.id ??
-                            null,
-
-                        geometry:
-                            feature.geometry?.type ??
-                            null,
-
-                        name:
-                            feature.properties?.name ??
-                            null,
-
-                        class:
-                            feature.properties?.class ??
-                            null,
-
-                        type:
-                            feature.properties?.type ??
-                            null
-                    };
-                }
-            )
-        );
-
-
-        // ----------------------------------------------------
-        // Ignore our own Localeify layers here.
-        // ----------------------------------------------------
-
-        const geographicFeature =
-            features.find(
-                function (feature) {
-
-                    return (
-                        feature.source !==
-                        "localeify-experiences" &&
-
-                        feature.source !==
-                        "localeify-selection"
-                    );
-                }
-            );
-
-
-        if (!geographicFeature) {
+            clearSelectedFeature();
 
             return;
         }
 
 
-        selectMapFeature(
-            geographicFeature,
-            event
+        // ----------------------------------------
+        // Find useful geographic feature
+        // ----------------------------------------
+
+        let candidate = null;
+
+
+        for (
+            const feature
+            of features
+        ) {
+
+            if (
+                feature.source ===
+                "openfreemap"
+            ) {
+
+                candidate =
+                    feature;
+
+                break;
+            }
+        }
+
+
+        // If source information is not available,
+        // use the first feature with geometry.
+
+        if (!candidate) {
+
+            for (
+                const feature
+                of features
+            ) {
+
+                if (
+                    feature.geometry
+                ) {
+
+                    candidate =
+                        feature;
+
+                    break;
+                }
+            }
+        }
+
+
+        if (!candidate) {
+
+            clearSelectedFeature();
+
+            return;
+        }
+
+
+        selectGenericFeature(
+            candidate,
+            event.lngLat
         );
     }
 );
-
-
-// ============================================================
-// CLEAR GENERIC SELECTION
-// ============================================================
-
-function clearSelectedFeature() {
-
-    selectedFeature =
-        null;
-
-
-    window.placefulSelectedMapFeature =
-        null;
-
-
-    window.localeifySelectedMapFeature =
-        null;
-
-
-    const source =
-        maplibreMap.getSource(
-            "localeify-selection"
-        );
-
-
-    if (source) {
-
-        source.setData(
-            createEmptyFeatureCollection()
-        );
-    }
-
-
-    featureInfo.style.display =
-        "none";
-}
 
 
 // ============================================================
@@ -1543,14 +2744,22 @@ document.addEventListener(
     function (event) {
 
         if (
-            event.key !==
-            "Escape"
+            event.key !== "Escape"
         ) {
             return;
         }
 
 
         clearSelectedFeature();
+
+
+        if (
+            typeof window.clearLocaleifySelectedExperience ===
+            "function"
+        ) {
+
+            window.clearLocaleifySelectedExperience();
+        }
     }
 );
 
@@ -1566,18 +2775,45 @@ window.clearPlacefulMapFeatureSelection =
     clearSelectedFeature;
 
 
+window.loadLocaleifyExperiences =
+    loadExperiences;
+
+window.loadLocaleifyPlaces =
+    loadLocaleifyPlaces;
+
+
+window.updateLocaleifyMapVisualization =
+    updateVisualization;
+
+
 // ============================================================
-// INITIALIZE GENERIC SELECTION SOURCE
-// ============================================================
-//
-// This must happen after the MapLibre style has loaded.
+// OPTIONAL EMOTION FILTER API
 // ============================================================
 
-maplibreMap.on(
-    "load",
+window.setLocaleifyEmotionFilter =
+    function (emotion) {
+
+        currentEmotionFilter =
+            emotion || null;
+
+        updateEmotionFilter();
+    };
+
+
+window.clearLocaleifyEmotionFilter =
     function () {
 
-        createSelectionSource();
+        currentEmotionFilter =
+            null;
 
-    }
+        updateEmotionFilter();
+    };
+
+
+// ============================================================
+// INITIAL CONSOLE MESSAGE
+// ============================================================
+
+console.log(
+    "Localeify MapLibre module initialized."
 );

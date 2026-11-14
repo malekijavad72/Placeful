@@ -53,6 +53,14 @@ function closeSidebar() {
 
   currentPopupExperienceId = null;
   currentCommentsExperienceId = null;
+
+  if (
+    typeof window.clearLocaleifySelectedExperience ===
+    "function"
+  ) {
+    window.clearLocaleifySelectedExperience();
+  }
+
   vectorLayer.changed();
   map.updateSize();
 }
@@ -320,7 +328,26 @@ if (sidebarCreator) {
 }
 
 if (sidebarBackdrop) {
-  sidebarBackdrop.addEventListener("click", closeSidebar);
+  sidebarBackdrop.addEventListener(
+    "click",
+    function () {
+
+      if (
+        placeSidebar &&
+        placeSidebar.classList.contains("open") &&
+        typeof closePlaceSidebar === "function"
+      ) {
+        closePlaceSidebar();
+      }
+
+      if (
+        sidebar &&
+        sidebar.classList.contains("open")
+      ) {
+        closeSidebar();
+      }
+    }
+  );
 }
 
 // ----------------------------------------------------------
